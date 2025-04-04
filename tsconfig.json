@@ -1,0 +1,20 @@
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017", // Target modern JS (ES2017 for async/await)
+    "module": "CommonJS", // For Node.js compatibility
+    "declaration": true, // Generate .d.ts files
+    "outDir": "./dist", // Output directory for compiled JS
+    "rootDir": "./src", // Source directory
+    "strict": true, // Enable all strict type-checking options
+    "esModuleInterop": true, // Allows default imports from CommonJS modules
+    "skipLibCheck": true, // Skip type checking of declaration files
+    "forceConsistentCasingInFileNames": true, // Disallow inconsistently-cased references
+    "moduleResolution": "node", // Resolve modules like Node.js does
+    "sourceMap": true, // Generate source maps for debugging
+    "lib": ["ESNext", "DOM"], // Include DOM types for fetch compatibility if needed, ESNext for modern features
+    "resolveJsonModule": true // Allows importing JSON files
+  },
+  "include": ["src/**/*"], // Which files to include in compilation
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "test"] // Which files/dirs to exclude
+}
