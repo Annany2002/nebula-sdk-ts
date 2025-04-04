@@ -2,16 +2,11 @@
 import { NebulaClientConfig } from "./types";
 import { NebulaError } from "./errors";
 import { AuthModule } from "./modules/auth";
-// Import modules when they are created
-// import { DatabaseModule } from './modules/database';
-// import { SchemaModule } from './modules/schema';
+import { DatabaseModule } from "./modules/database"; // <-- Import
+import { SchemaModule } from "./modules/schema"; // <-- Import
+import { ModuleContext } from "./modules/_common"; // <-- Import common context type
+// Import RecordModule later
 // import { RecordModule } from './modules/record';
-
-/** Internal context passed to modules */
-interface ModuleContext {
-  config: Required<NebulaClientConfig>;
-  getAuthToken: () => string | null;
-}
 
 /**
  * Main client class for interacting with the Nebula BaaS API.
@@ -21,9 +16,9 @@ export class NebulaClient {
   private authToken: string | null = null;
 
   // Resource Modules
-  public readonly auth: AuthModule; // Publicly expose the auth module
-  // public readonly databases: DatabaseModule;
-  // public readonly schema: SchemaModule;
+  public readonly auth: AuthModule;
+  public readonly databases: DatabaseModule; // <-- Expose DatabaseModule
+  public readonly schema: SchemaModule; // <-- Expose SchemaModule
   // public readonly records: RecordModule;
 
   /**
@@ -57,8 +52,8 @@ export class NebulaClient {
 
     // Initialize API modules
     this.auth = new AuthModule(context);
-    // this.databases = new DatabaseModule(context);
-    // this.schema = new SchemaModule(context);
+    this.databases = new DatabaseModule(context);
+    this.schema = new SchemaModule(context);
     // this.records = new RecordModule(context);
   }
 

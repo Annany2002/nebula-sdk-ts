@@ -1,18 +1,7 @@
 // src/modules/auth.ts
 import { makeRequest } from "../http";
-import {
-  Credentials,
-  LoginResponse,
-  SignupResponse,
-  NebulaClientConfig,
-  UserInfo,
-} from "../types";
-
-/** Internal context passed to modules */
-interface ModuleContext {
-  config: Required<NebulaClientConfig>;
-  getAuthToken: () => string | null;
-}
+import { Credentials, LoginResponse, SignupResponse, UserInfo } from "../types";
+import { ModuleContext } from "./_common";
 
 export class AuthModule {
   private context: ModuleContext;
