@@ -1,21 +1,27 @@
 // src/client.ts
 import { NebulaClientConfig } from "./types";
 import { NebulaError } from "./errors";
+import { AuthModule } from "./modules/auth";
 // Import modules when they are created
-// import { AuthModule } from './modules/auth';
 // import { DatabaseModule } from './modules/database';
 // import { SchemaModule } from './modules/schema';
 // import { RecordModule } from './modules/record';
+
+/** Internal context passed to modules */
+interface ModuleContext {
+  config: Required<NebulaClientConfig>;
+  getAuthToken: () => string | null;
+}
 
 /**
  * Main client class for interacting with the Nebula BaaS API.
  */
 export class NebulaClient {
-  private config: Required<NebulaClientConfig>; // Store config with defaults applied
-  private authToken: string | null = null; // Internal state for JWT
+  private config: Required<NebulaClientConfig>;
+  private authToken: string | null = null;
 
-  // Resource Modules will be added here
-  // public readonly auth: AuthModule;
+  // Resource Modules
+  public readonly auth: AuthModule; // Publicly expose the auth module
   // public readonly databases: DatabaseModule;
   // public readonly schema: SchemaModule;
   // public readonly records: RecordModule;
@@ -43,12 +49,17 @@ export class NebulaClient {
       ...config, // User config overrides defaults
     };
 
-    // Initialize API modules (passing necessary context like config and token management)
-    // This structure might change slightly depending on how modules access config/token
-    // const context = { config: this.config, getAuthToken: () => this.authToken };
-    // this.auth = new AuthModule(context);
+    // Create the context for modules
+    const context: ModuleContext = {
+      config: this.config,
+      getAuthToken: () => this.authToken, // Provide a way for modules to get the token
+    };
+
+    // Initialize API modules
+    this.auth = new AuthModule(context);
     // this.databases = new DatabaseModule(context);
-    // ...etc
+    // this.schema = new SchemaModule(context);
+    // this.records = new RecordModule(context);
   }
 
   /**

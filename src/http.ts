@@ -1,34 +1,45 @@
 // src/http.ts
 import { NebulaClientConfig, NebulaErrorResponse } from "./types";
-import { ApiError, NetworkError, TimeoutError } from "./errors";
+import {
+  ApiError,
+  NetworkError,
+  TimeoutError,
+  AuthError,
+  ForbiddenError,
+  NotFoundError,
+  BadRequestError,
+  RateLimitError,
+  ServerError,
+} from "./errors";
 import { DEFAULT_TIMEOUT, USER_AGENT } from "./config";
+
+/** Internal type for passing context to makeRequest */
+interface RequestContext extends NebulaClientConfig {
+  authToken: string | null; // Include the active auth token
+}
 
 /**
  * Internal function to make HTTP requests to the Nebula API.
- * **Note:** This initial version does not handle authentication tokens.
+ * Handles adding auth token and mapping status codes to specific errors.
  * @internal
  */
 export async function makeRequest<T>(
   path: string,
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
-  config: NebulaClientConfig,
-  // We need the active token here later
-  // authToken: string | null,
+  context: RequestContext, // Use the combined context type
   queryParams?: Record<string, string | number | boolean>,
   body?: any,
 ): Promise<T> {
-  const { baseURL, fetch: customFetch, timeout } = config;
+  const { baseURL, fetch: customFetch, timeout, authToken } = context; // Destructure authToken
   const fetchFn = customFetch || fetch;
   const requestTimeout = timeout ?? DEFAULT_TIMEOUT;
 
-  // Construct URL with query parameters if provided
   const url = new URL(
     `${baseURL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`,
   );
   if (queryParams) {
     Object.entries(queryParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        // Handle potential undefined/null values
         url.searchParams.append(key, String(value));
       }
     });
@@ -39,15 +50,14 @@ export async function makeRequest<T>(
     "User-Agent": USER_AGENT,
   };
 
-  // Add Content-Type header only if body exists
   if (body) {
     headers["Content-Type"] = "application/json";
   }
 
-  // TODO: Add Authorization header later:
-  // if (authToken) {
-  //   headers['Authorization'] = `Bearer ${authToken}`;
-  // }
+  // Add Authorization header if token exists
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
@@ -70,45 +80,82 @@ export async function makeRequest<T>(
     clearTimeout(timeoutId);
   }
 
-  // Handle successful 'No Content' response (e.g., for DELETE)
   if (response.status === 204) {
-    // Type assertion needed as T might not be void/null
     return null as T;
   }
 
   let responseBody: any;
+  const contentType = response.headers.get("content-type");
+  const isJson = contentType && contentType.includes("application/json");
+
   try {
-    // Try parsing JSON, but handle potential non-JSON success responses if necessary
-    // For now assume success means JSON or No Content
     const text = await response.text();
-    if (text) {
+    if (text && isJson) {
       responseBody = JSON.parse(text);
+    } else if (text) {
+      // Handle non-JSON response text if needed, maybe just use it as message?
+      // If response.ok is true but non-JSON, could be problematic.
+      responseBody = { message: text }; // Treat as simple message object
     } else {
-      responseBody = null; // Handle empty body case
+      responseBody = null;
     }
   } catch (e) {
-    // If response.ok is true but JSON parsing failed, it's an issue
     if (response.ok) {
       throw new NetworkError(
         "Received non-JSON response from API when JSON was expected.",
         e as Error,
       );
     }
-    // If it's an error status and non-JSON, create a basic error message for ApiError
+    // Use a generic error structure if parsing fails on an error response
     responseBody = {
-      error: `Received status ${response.status} with non-JSON body.`,
+      error: `Received status ${response.status} with invalid JSON body.`,
     };
   }
 
   if (!response.ok) {
-    const errorData = responseBody as NebulaErrorResponse;
-    const errorMessage =
-      errorData?.error || `HTTP error! Status: ${response.status}`;
+    // Use parsed body if available and looks like an error object, otherwise use default messages
+    const errorData =
+      responseBody &&
+      typeof responseBody === "object" &&
+      "error" in responseBody
+        ? (responseBody as NebulaErrorResponse)
+        : {
+            error:
+              responseBody?.message || `HTTP error! Status: ${response.status}`,
+          };
+    const errorMessage = errorData.error;
 
-    // TODO: Throw specific errors (Auth, NotFound, RateLimit, etc.) later based on status code
-    throw new ApiError(errorMessage, response.status, errorData);
+    // Throw specific errors based on status code
+    switch (response.status) {
+      case 400:
+        throw new BadRequestError(errorMessage, errorData);
+      case 401:
+        throw new AuthError(errorMessage, errorData);
+      case 403:
+        throw new ForbiddenError(errorMessage, errorData);
+      case 404:
+        throw new NotFoundError(errorMessage, errorData);
+      case 429:
+        throw new RateLimitError(errorMessage, errorData);
+      default:
+        if (response.status >= 500) {
+          throw new ServerError(errorMessage, response.status, errorData);
+        }
+        // Catch-all for other 4xx errors or unexpected statuses
+        throw new ApiError(
+          `Unhandled API Error: ${errorMessage}`,
+          response.status,
+          errorData,
+        );
+    }
   }
 
-  // Type assertion needed as responseBody is 'any'
+  // Check if responseBody is null and T is not expecting null/void
+  // This is tricky, might need adjustment based on specific API calls expecting non-JSON success
+  if (responseBody === null && response.status !== 204) {
+    // Consider if specific endpoints might return 200 OK with empty body
+    // For now, assume T allows null/void or this case is handled by specific module logic
+  }
+
   return responseBody as T;
 }
