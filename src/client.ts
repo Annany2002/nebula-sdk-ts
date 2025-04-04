@@ -5,8 +5,7 @@ import { AuthModule } from "./modules/auth";
 import { DatabaseModule } from "./modules/database"; // <-- Import
 import { SchemaModule } from "./modules/schema"; // <-- Import
 import { ModuleContext } from "./modules/_common"; // <-- Import common context type
-// Import RecordModule later
-// import { RecordModule } from './modules/record';
+import { RecordModule } from "./modules/record";
 
 /**
  * Main client class for interacting with the Nebula BaaS API.
@@ -19,7 +18,7 @@ export class NebulaClient {
   public readonly auth: AuthModule;
   public readonly databases: DatabaseModule; // <-- Expose DatabaseModule
   public readonly schema: SchemaModule; // <-- Expose SchemaModule
-  // public readonly records: RecordModule;
+  public readonly records: RecordModule;
 
   /**
    * Creates an instance of the NebulaClient.
@@ -54,7 +53,7 @@ export class NebulaClient {
     this.auth = new AuthModule(context);
     this.databases = new DatabaseModule(context);
     this.schema = new SchemaModule(context);
-    // this.records = new RecordModule(context);
+    this.records = new RecordModule(context);
   }
 
   /**
