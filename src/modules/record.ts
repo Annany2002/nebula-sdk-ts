@@ -1,12 +1,7 @@
 // src/modules/record.ts
-import { makeRequest } from "../http";
-import {
-  CreateRecordPayload,
-  UpdateRecordPayload,
-  RecordResponse,
-  FilterParams,
-} from "../types";
-import { ModuleContext } from "./_common";
+import { makeRequest } from '../http';
+import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams } from '../types';
+import { ModuleContext } from './_common';
 
 export class RecordModule {
   private context: ModuleContext;
@@ -22,23 +17,15 @@ export class RecordModule {
     };
   }
 
-  private buildRecordPath(
-    dbName: string,
-    tableName: string,
-    recordId?: number,
-  ): string {
-    if (!dbName) throw new Error("Database name is required.");
-    if (!tableName) throw new Error("Table name is required.");
+  private buildRecordPath(dbName: string, tableName: string, recordId?: number): string {
+    if (!dbName) throw new Error('Database name is required.');
+    if (!tableName) throw new Error('Table name is required.');
 
     let path = `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/records`;
     if (recordId !== undefined) {
       // Basic validation for numeric ID
-      if (
-        typeof recordId !== "number" ||
-        !Number.isInteger(recordId) ||
-        recordId <= 0
-      ) {
-        throw new Error("Record ID must be a positive integer.");
+      if (typeof recordId !== 'number' || !Number.isInteger(recordId) || recordId <= 0) {
+        throw new Error('Record ID must be a positive integer.');
       }
       path += `/${recordId}`;
     }
@@ -60,22 +47,18 @@ export class RecordModule {
   async create(
     dbName: string,
     tableName: string,
-    payload: CreateRecordPayload,
+    payload: CreateRecordPayload
   ): Promise<RecordResponse> {
-    if (
-      !payload ||
-      typeof payload !== "object" ||
-      Object.keys(payload).length === 0
-    ) {
-      throw new Error("Record data payload cannot be empty.");
+    if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+      throw new Error('Record data payload cannot be empty.');
     }
     const path = this.buildRecordPath(dbName, tableName);
     return makeRequest<RecordResponse>(
       path,
-      "POST",
+      'POST',
       this.getRequestContext(),
       undefined, // No query params
-      payload,
+      payload
     );
   }
 
@@ -91,18 +74,14 @@ export class RecordModule {
    * @throws {BadRequestError} If filter parameters are invalid for the schema.
    * @throws {ApiError} For other API-related errors.
    */
-  async list(
-    dbName: string,
-    tableName: string,
-    filter?: FilterParams,
-  ): Promise<RecordResponse[]> {
+  async list(dbName: string, tableName: string, filter?: FilterParams): Promise<RecordResponse[]> {
     const path = this.buildRecordPath(dbName, tableName);
     // Filter object directly used as queryParams by makeRequest
     return makeRequest<RecordResponse[]>(
       path,
-      "GET",
+      'GET',
       this.getRequestContext(),
-      filter, // Pass filter object as query parameters
+      filter // Pass filter object as query parameters
     );
   }
 
@@ -117,13 +96,9 @@ export class RecordModule {
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */
-  async get(
-    dbName: string,
-    tableName: string,
-    recordId: number,
-  ): Promise<RecordResponse> {
+  async get(dbName: string, tableName: string, recordId: number): Promise<RecordResponse> {
     const path = this.buildRecordPath(dbName, tableName, recordId);
-    return makeRequest<RecordResponse>(path, "GET", this.getRequestContext());
+    return makeRequest<RecordResponse>(path, 'GET', this.getRequestContext());
   }
 
   /**
@@ -143,23 +118,13 @@ export class RecordModule {
     dbName: string,
     tableName: string,
     recordId: number,
-    payload: UpdateRecordPayload,
+    payload: UpdateRecordPayload
   ): Promise<RecordResponse> {
-    if (
-      !payload ||
-      typeof payload !== "object" ||
-      Object.keys(payload).length === 0
-    ) {
-      throw new Error("Update payload cannot be empty.");
+    if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+      throw new Error('Update payload cannot be empty.');
     }
     const path = this.buildRecordPath(dbName, tableName, recordId);
-    return makeRequest<RecordResponse>(
-      path,
-      "PUT",
-      this.getRequestContext(),
-      undefined,
-      payload,
-    );
+    return makeRequest<RecordResponse>(path, 'PUT', this.getRequestContext(), undefined, payload);
   }
 
   /**
@@ -173,13 +138,9 @@ export class RecordModule {
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */
-  async delete(
-    dbName: string,
-    tableName: string,
-    recordId: number,
-  ): Promise<void> {
+  async delete(dbName: string, tableName: string, recordId: number): Promise<void> {
     const path = this.buildRecordPath(dbName, tableName, recordId);
-    await makeRequest<null>(path, "DELETE", this.getRequestContext());
+    await makeRequest<null>(path, 'DELETE', this.getRequestContext());
     // Success if no error thrown
   }
 }

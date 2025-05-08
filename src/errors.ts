@@ -1,11 +1,11 @@
 // src/errors.ts
-import { NebulaErrorResponse } from "./types";
+import { NebulaErrorResponse } from './types';
 
 /** Base class for all SDK-specific errors */
 export class NebulaError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "NebulaError";
+    this.name = 'NebulaError';
     Object.setPrototypeOf(this, NebulaError.prototype);
   }
 }
@@ -15,13 +15,9 @@ export class ApiError extends NebulaError {
   public statusCode: number;
   public errorData?: NebulaErrorResponse; // Original error data from API if available
 
-  constructor(
-    message: string,
-    statusCode: number,
-    errorData?: NebulaErrorResponse,
-  ) {
+  constructor(message: string, statusCode: number, errorData?: NebulaErrorResponse) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
     this.statusCode = statusCode;
     this.errorData = errorData;
     Object.setPrototypeOf(this, ApiError.prototype);
@@ -32,9 +28,9 @@ export class ApiError extends NebulaError {
 export class NetworkError extends NebulaError {
   public cause?: Error; // Original underlying error if available
 
-  constructor(message: string = "A network error occurred.", cause?: Error) {
+  constructor(message: string = 'A network error occurred.', cause?: Error) {
     super(message);
-    this.name = "NetworkError";
+    this.name = 'NetworkError';
     this.cause = cause;
     Object.setPrototypeOf(this, NetworkError.prototype);
   }
@@ -42,9 +38,9 @@ export class NetworkError extends NebulaError {
 
 /** Error when a request times out */
 export class TimeoutError extends NetworkError {
-  constructor(message: string = "The request timed out.") {
+  constructor(message: string = 'The request timed out.') {
     super(message);
-    this.name = "TimeoutError";
+    this.name = 'TimeoutError';
     Object.setPrototypeOf(this, TimeoutError.prototype);
   }
 }
@@ -54,47 +50,38 @@ export class TimeoutError extends NetworkError {
 /** Error for authentication failures (401 Unauthorized) */
 export class AuthError extends ApiError {
   constructor(
-    message: string = "Authentication failed. Check credentials or token.",
-    errorData?: NebulaErrorResponse,
+    message: string = 'Authentication failed. Check credentials or token.',
+    errorData?: NebulaErrorResponse
   ) {
     super(message, 401, errorData);
-    this.name = "AuthError";
+    this.name = 'AuthError';
     Object.setPrototypeOf(this, AuthError.prototype);
   }
 }
 
 /** Error for authorization failures (403 Forbidden) */
 export class ForbiddenError extends ApiError {
-  constructor(
-    message: string = "Permission denied.",
-    errorData?: NebulaErrorResponse,
-  ) {
+  constructor(message: string = 'Permission denied.', errorData?: NebulaErrorResponse) {
     super(message, 403, errorData);
-    this.name = "ForbiddenError";
+    this.name = 'ForbiddenError';
     Object.setPrototypeOf(this, ForbiddenError.prototype);
   }
 }
 
 /** Error for resource not found (404 Not Found) */
 export class NotFoundError extends ApiError {
-  constructor(
-    message: string = "Resource not found.",
-    errorData?: NebulaErrorResponse,
-  ) {
+  constructor(message: string = 'Resource not found.', errorData?: NebulaErrorResponse) {
     super(message, 404, errorData);
-    this.name = "NotFoundError";
+    this.name = 'NotFoundError';
     Object.setPrototypeOf(this, NotFoundError.prototype);
   }
 }
 
 /** Error for invalid request input (400 Bad Request) */
 export class BadRequestError extends ApiError {
-  constructor(
-    message: string = "Bad request. Invalid input.",
-    errorData?: NebulaErrorResponse,
-  ) {
+  constructor(message: string = 'Bad request. Invalid input.', errorData?: NebulaErrorResponse) {
     super(message, 400, errorData);
-    this.name = "BadRequestError";
+    this.name = 'BadRequestError';
     Object.setPrototypeOf(this, BadRequestError.prototype);
   }
 }
@@ -102,11 +89,11 @@ export class BadRequestError extends ApiError {
 /** Error for rate limiting (429 Too Many Requests) */
 export class RateLimitError extends ApiError {
   constructor(
-    message: string = "Too many requests. Please wait and try again.",
-    errorData?: NebulaErrorResponse,
+    message: string = 'Too many requests. Please wait and try again.',
+    errorData?: NebulaErrorResponse
   ) {
     super(message, 429, errorData);
-    this.name = "RateLimitError";
+    this.name = 'RateLimitError';
     Object.setPrototypeOf(this, RateLimitError.prototype);
   }
 }
@@ -114,14 +101,14 @@ export class RateLimitError extends ApiError {
 /** Error for server-side issues (5xx Server Error) */
 export class ServerError extends ApiError {
   constructor(
-    message: string = "An unexpected server error occurred.",
+    message: string = 'An unexpected server error occurred.',
     statusCode: number,
-    errorData?: NebulaErrorResponse,
+    errorData?: NebulaErrorResponse
   ) {
     // Ensure status code is >= 500, default to 500 if not passed correctly
     const validStatusCode = statusCode >= 500 ? statusCode : 500;
     super(message, validStatusCode, errorData);
-    this.name = "ServerError";
+    this.name = 'ServerError';
     Object.setPrototypeOf(this, ServerError.prototype);
   }
 }

@@ -4,4 +4,4 @@ export * from "./config";
 export * from "./auth";
 export * from "./database";
 export * from "./schema";
-export * from "./record"; // <-- Added
+export * from "./record";

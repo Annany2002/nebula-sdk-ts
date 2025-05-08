@@ -1,7 +1,13 @@
 // src/modules/auth.ts
-import { makeRequest } from "../http";
-import { Credentials, LoginResponse, SignupResponse, UserInfo } from "../types";
-import { ModuleContext } from "./_common";
+import { makeRequest } from '../http';
+import {
+  SignUpCredentials,
+  LoginResponse,
+  SignupResponse,
+  UserInfo,
+  LoginCredentials,
+} from '../types';
+import { ModuleContext } from './_common';
 
 export class AuthModule {
   private context: ModuleContext;
@@ -19,21 +25,21 @@ export class AuthModule {
 
   /**
    * Registers a new user account.
-   * @param credentials - User email and password.
+   * @param credentials - User email, username and password.
    * @returns A promise that resolves upon successful signup (response body depends on API).
    * @throws {BadRequestError} If email/password format is invalid or email is taken.
    * @throws {ApiError} For other API-related errors.
    * @throws {NetworkError} If the request fails to send.
    */
-  async signup(credentials: Credentials): Promise<SignupResponse> {
+  async signup(credentials: SignUpCredentials): Promise<SignupResponse> {
     // Note: No auth token needed for signup
     const requestContext = { ...this.context.config, authToken: null };
     return makeRequest<SignupResponse>(
-      "auth/signup",
-      "POST",
+      'auth/signup',
+      'POST',
       requestContext,
       undefined,
-      credentials,
+      credentials
     );
   }
 
@@ -48,16 +54,20 @@ export class AuthModule {
    * @throws {ApiError} For other API-related errors.
    * @throws {NetworkError} If the request fails to send.
    */
-  async login(credentials: Credentials): Promise<LoginResponse> {
+  async login(credentials: LoginCredentials): Promise<LoginResponse> {
     // Note: No auth token needed for login
     const requestContext = { ...this.context.config, authToken: null };
-    return makeRequest<LoginResponse>(
-      "auth/login",
-      "POST",
-      requestContext,
-      undefined,
-      credentials,
-    );
+    return makeRequest<LoginResponse>('auth/login', 'POST', requestContext, undefined, credentials);
+  }
+
+  /**
+   * Health route to check health of the protected routes
+   * Requires an api key
+   * @returns A void Promise
+   */
+
+  async healthP(): Promise<void> {
+    return makeRequest('api/v1/health', 'GET', this.getRequestContext());
   }
 
   /**
@@ -70,6 +80,6 @@ export class AuthModule {
    */
   async getMe(): Promise<UserInfo> {
     // This request requires authentication
-    return makeRequest<UserInfo>("api/v1/me", "GET", this.getRequestContext());
+    return makeRequest<UserInfo>('api/v1/me', 'GET', this.getRequestContext());
   }
 }

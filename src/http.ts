@@ -1,5 +1,5 @@
 // src/http.ts
-import { NebulaClientConfig, NebulaErrorResponse } from "./types";
+import { NebulaClientConfig, NebulaErrorResponse } from './types';
 import {
   ApiError,
   NetworkError,
@@ -10,13 +10,11 @@ import {
   BadRequestError,
   RateLimitError,
   ServerError,
-} from "./errors";
-import { DEFAULT_TIMEOUT, USER_AGENT } from "./config";
+} from './errors';
+import { DEFAULT_TIMEOUT, USER_AGENT } from './config';
 
 /** Internal type for passing context to makeRequest */
-interface RequestContext extends NebulaClientConfig {
-  authToken: string | null; // Include the active auth token
-}
+interface RequestContext extends NebulaClientConfig {}
 
 /**
  * Internal function to make HTTP requests to the Nebula API.
@@ -25,18 +23,16 @@ interface RequestContext extends NebulaClientConfig {
  */
 export async function makeRequest<T>(
   path: string,
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   context: RequestContext, // Use the combined context type
   queryParams?: Record<string, string | number | boolean>,
-  body?: any,
+  body?: any
 ): Promise<T> {
-  const { baseURL, fetch: customFetch, timeout, authToken } = context; // Destructure authToken
+  const { baseURL, fetch: customFetch, timeout, apiKey } = context; // Destructure authToken
   const fetchFn = customFetch || fetch;
   const requestTimeout = timeout ?? DEFAULT_TIMEOUT;
 
-  const url = new URL(
-    `${baseURL.replace(/\/$/, "")}/${path.replace(/^\//, "")}`,
-  );
+  const url = new URL(`${baseURL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`);
   if (queryParams) {
     Object.entries(queryParams).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -46,18 +42,16 @@ export async function makeRequest<T>(
   }
 
   const headers: Record<string, string> = {
-    Accept: "application/json",
-    "User-Agent": USER_AGENT,
+    Accept: 'application/json',
+    'User-Agent': USER_AGENT,
+    Authorization: `ApiKey ${apiKey}`,
   };
 
   if (body) {
-    headers["Content-Type"] = "application/json";
+    headers['Content-Type'] = 'application/json';
   }
 
-  // Add Authorization header if token exists
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
+  // Add Api
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
@@ -72,7 +66,7 @@ export async function makeRequest<T>(
     });
   } catch (error: any) {
     clearTimeout(timeoutId);
-    if (error.name === "AbortError") {
+    if (error.name === 'AbortError') {
       throw new TimeoutError(`Request timed out after ${requestTimeout}ms`);
     }
     throw new NetworkError(`Failed to fetch: ${error.message}`, error);
@@ -85,8 +79,8 @@ export async function makeRequest<T>(
   }
 
   let responseBody: any;
-  const contentType = response.headers.get("content-type");
-  const isJson = contentType && contentType.includes("application/json");
+  const contentType = response.headers.get('content-type');
+  const isJson = contentType && contentType.includes('application/json');
 
   try {
     const text = await response.text();
@@ -102,8 +96,8 @@ export async function makeRequest<T>(
   } catch (e) {
     if (response.ok) {
       throw new NetworkError(
-        "Received non-JSON response from API when JSON was expected.",
-        e as Error,
+        'Received non-JSON response from API when JSON was expected.',
+        e as Error
       );
     }
     // Use a generic error structure if parsing fails on an error response
@@ -115,13 +109,10 @@ export async function makeRequest<T>(
   if (!response.ok) {
     // Use parsed body if available and looks like an error object, otherwise use default messages
     const errorData =
-      responseBody &&
-      typeof responseBody === "object" &&
-      "error" in responseBody
+      responseBody && typeof responseBody === 'object' && 'error' in responseBody
         ? (responseBody as NebulaErrorResponse)
         : {
-            error:
-              responseBody?.message || `HTTP error! Status: ${response.status}`,
+            error: responseBody?.message || `HTTP error! Status: ${response.status}`,
           };
     const errorMessage = errorData.error;
 
@@ -142,11 +133,7 @@ export async function makeRequest<T>(
           throw new ServerError(errorMessage, response.status, errorData);
         }
         // Catch-all for other 4xx errors or unexpected statuses
-        throw new ApiError(
-          `Unhandled API Error: ${errorMessage}`,
-          response.status,
-          errorData,
-        );
+        throw new ApiError(`Unhandled API Error: ${errorMessage}`, response.status, errorData);
     }
   }
 

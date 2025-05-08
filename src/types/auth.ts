@@ -1,7 +1,16 @@
 // src/types/auth.ts
 
-/** User credentials for signup or login */
-export interface Credentials {
+import { User } from './common';
+
+/** User credentials for signup */
+export interface SignUpCredentials {
+  email: string;
+  password: string;
+  username: string;
+}
+
+/** User credentials for login */
+export interface LoginCredentials {
   email: string;
   password: string;
 }
@@ -9,6 +18,8 @@ export interface Credentials {
 /** Response from a successful login request */
 export interface LoginResponse {
   token: string;
+  message: string;
+  user: User;
 }
 
 /**

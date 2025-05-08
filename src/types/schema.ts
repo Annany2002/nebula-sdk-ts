@@ -25,7 +25,16 @@ export interface SchemaInfoResponse {
   message?: string; // Example field
 }
 
+export interface TableListResponseType {
+  type: string;
+  name: string;
+  tbl_name: string;
+  rootpage: string;
+  sql: string;
+  createdAt: string;
+  columns: ColumnDefinition[];
+}
 /** Assumed response structure for listing tables in a database */
 export interface TableListResponse {
-  tables: string[];
+  tables: TableListResponseType[];
 }

@@ -1,14 +1,14 @@
 // src/client.ts
-import { NebulaClientConfig } from "./types";
-import { NebulaError } from "./errors";
-import { AuthModule } from "./modules/auth";
-import { DatabaseModule } from "./modules/database"; // <-- Import
-import { SchemaModule } from "./modules/schema"; // <-- Import
-import { ModuleContext } from "./modules/_common"; // <-- Import common context type
-import { RecordModule } from "./modules/record";
+import { NebulaClientConfig } from './types';
+import { NebulaError } from './errors';
+import { AuthModule } from './modules/auth';
+import { DatabaseModule } from './modules/database';
+import { SchemaModule } from './modules/schema';
+import { ModuleContext } from './modules/_common';
+import { RecordModule } from './modules/record';
 
 /**
- * Main client class for interacting with the Nebula BaaS API.
+ * Main client class for interacting with the Nebula  API.
  */
 export class NebulaClient {
   private config: Required<NebulaClientConfig>;
@@ -16,17 +16,17 @@ export class NebulaClient {
 
   // Resource Modules
   public readonly auth: AuthModule;
-  public readonly databases: DatabaseModule; // <-- Expose DatabaseModule
-  public readonly schema: SchemaModule; // <-- Expose SchemaModule
+  public readonly databases: DatabaseModule;
+  public readonly schema: SchemaModule;
   public readonly records: RecordModule;
 
   /**
    * Creates an instance of the NebulaClient.
-   * @param config - Configuration options for the client. Requires `baseURL`.
+   * @param config - Configuration options for the client. Requires `baseURL` and an `apiKey`.
    */
   constructor(config: NebulaClientConfig) {
-    if (!config || !config.baseURL) {
-      throw new NebulaError("NebulaClient requires baseURL in configuration.");
+    if (!config || !config.baseURL || !config.apiKey) {
+      throw new NebulaError('NebulaClient requires baseURL and an apiKey in configuration.');
     }
 
     // Validate baseURL format
@@ -78,7 +78,7 @@ export class NebulaClient {
    * Allows checking the current configuration (excluding sensitive info if necessary).
    * Useful for debugging.
    */
-  public getConfig(): Omit<Required<NebulaClientConfig>, "fetch"> {
+  public getConfig(): Omit<Required<NebulaClientConfig>, 'fetch'> {
     // Exclude fetch function from display/return if desired
     const { fetch, ...rest } = this.config;
     return rest;

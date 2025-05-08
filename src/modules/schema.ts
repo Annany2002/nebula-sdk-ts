@@ -1,7 +1,7 @@
 // src/modules/schema.ts
-import { makeRequest } from "../http";
-import { SchemaPayload, SchemaInfoResponse, TableListResponse } from "../types";
-import { ModuleContext } from "./_common"; // Assuming ModuleContext is defined/shared
+import { makeRequest } from '../http';
+import { SchemaPayload, SchemaInfoResponse, TableListResponse } from '../types';
+import { ModuleContext } from './_common'; // Assuming ModuleContext is defined/shared
 
 export class SchemaModule {
   private context: ModuleContext;
@@ -28,29 +28,19 @@ export class SchemaModule {
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} If the table name already exists or for other errors.
    */
-  async define(
-    dbName: string,
-    payload: SchemaPayload,
-  ): Promise<SchemaInfoResponse> {
-    if (!dbName) throw new Error("Database name is required.");
-    if (
-      !payload ||
-      !payload.table_name ||
-      !payload.columns ||
-      payload.columns.length === 0
-    ) {
-      throw new Error(
-        "Table name and at least one column definition are required.",
-      );
+  async define(dbName: string, payload: SchemaPayload): Promise<SchemaInfoResponse> {
+    if (!dbName) throw new Error('Database name is required.');
+    if (!payload || !payload.table_name || !payload.columns || payload.columns.length === 0) {
+      throw new Error('Table name and at least one column definition are required.');
       // Add more specific validation for column definitions if desired
     }
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/schema`;
     return makeRequest<SchemaInfoResponse>(
       path,
-      "POST",
+      'POST',
       this.getRequestContext(),
       undefined,
-      payload,
+      payload
     );
   }
 
@@ -64,13 +54,9 @@ export class SchemaModule {
    * @throws {ApiError} For other API-related errors.
    */
   async listTables(dbName: string): Promise<TableListResponse> {
-    if (!dbName) throw new Error("Database name is required.");
+    if (!dbName) throw new Error('Database name is required.');
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/tables`;
-    return makeRequest<TableListResponse>(
-      path,
-      "GET",
-      this.getRequestContext(),
-    );
+    return makeRequest<TableListResponse>(path, 'GET', this.getRequestContext());
   }
 
   /**
@@ -84,10 +70,10 @@ export class SchemaModule {
    * @throws {ApiError} For other API-related errors.
    */
   async deleteTable(dbName: string, tableName: string): Promise<void> {
-    if (!dbName) throw new Error("Database name is required.");
-    if (!tableName) throw new Error("Table name is required.");
+    if (!dbName) throw new Error('Database name is required.');
+    if (!tableName) throw new Error('Table name is required.');
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}`;
-    await makeRequest<null>(path, "DELETE", this.getRequestContext());
+    await makeRequest<null>(path, 'DELETE', this.getRequestContext());
     // If makeRequest didn't throw, the operation succeeded.
   }
 }
