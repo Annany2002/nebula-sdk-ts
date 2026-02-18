@@ -6,6 +6,8 @@ import {
   SignupResponse,
   UserInfo,
   LoginCredentials,
+  UpdateProfilePayload,
+  UserProfileResponse,
 } from '../types';
 import { ModuleContext } from './_common';
 
@@ -73,13 +75,54 @@ export class AuthModule {
   /**
    * Fetches basic information about the currently authenticated user.
    * Requires a valid token to be set on the client via `setAuthToken`.
-   * @returns User information (exact content depends on API's /api/v1/me endpoint).
+   * @returns User information including userId, username, email, and createdAt.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    * @throws {NetworkError} If the request fails to send.
    */
   async getMe(): Promise<UserInfo> {
     // This request requires authentication
-    return makeRequest<UserInfo>('api/v1/me', 'GET', this.getRequestContext());
+    return makeRequest<UserInfo>('api/v1/account/user/me', 'GET', this.getRequestContext());
+  }
+
+  /**
+   * Updates the profile of the currently authenticated user.
+   * Requires a valid token to be set on the client via `setAuthToken`.
+   * @param payload - Object containing fields to update (username and/or email).
+   * @returns The updated user profile response.
+   * @throws {BadRequestError} If no fields are provided or values are invalid.
+   * @throws {AuthError} If the token is missing, invalid, or expired.
+   * @throws {ApiError} For other API-related errors.
+   */
+  async updateProfile(payload: UpdateProfilePayload): Promise<UserProfileResponse> {
+    if (!payload || (!payload.username && !payload.email)) {
+      throw new Error("No fields to update. Provide 'username' or 'email'.");
+    }
+    return makeRequest<UserProfileResponse>(
+      'api/v1/account/user/me',
+      'PUT',
+      this.getRequestContext(),
+      undefined,
+      payload
+    );
+  }
+
+  /**
+   * Finds a user by their user ID.
+   * @param userId - The unique ID of the user to find.
+   * @returns User information for the specified user.
+   * @throws {NotFoundError} If no user exists with the given ID.
+   * @throws {AuthError} If the token is missing, invalid, or expired.
+   * @throws {ApiError} For other API-related errors.
+   */
+  async findUser(userId: string): Promise<UserInfo> {
+    if (!userId) {
+      throw new Error('User ID is required.');
+    }
+    return makeRequest<UserInfo>(
+      `api/v1/user/${encodeURIComponent(userId)}`,
+      'GET',
+      this.getRequestContext()
+    );
   }
 }
