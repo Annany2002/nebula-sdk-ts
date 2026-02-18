@@ -1,14 +1,6 @@
 # Nebula TypeScript SDK
 
-A TypeScript SDK for interacting with the Nebula platform. This SDK provides a type-safe way to interact with Nebula's APIs and services.
-
-## Features
-
-- TypeScript support with full type definitions
-- Modern async/await API
-- Comprehensive error handling
-- Built-in HTTP client
-- Modular architecture
+A TypeScript SDK for interacting with the [Nebula](https://github.com/Annany2002/nebula-backend) backend platform. Provides a type-safe, modular client for managing databases, schemas, records, authentication, and API keys.
 
 ## Installation
 
@@ -16,156 +8,181 @@ A TypeScript SDK for interacting with the Nebula platform. This SDK provides a t
 npm install nebula-sdk-ts
 ```
 
-## Requirements
+**Requirements:** Node.js >= 18.0.0 | TypeScript >= 5.4.5
 
-- Node.js >= 18.0.0
-- TypeScript >= 5.4.5
-
-## Usage
+## Quick Start
 
 ```typescript
 import { NebulaClient } from 'nebula-sdk-ts';
 
-// Initialize the client
 const client = new NebulaClient({
-  baseUrl: 'https://api-nebula-backend.duckdns.org',
+  baseURL: 'https://api-nebula-backend.duckdns.org',
   apiKey: 'your_api_key',
 });
-
-// Use the client to interact with Nebula services
 ```
 
-### Database Operations
-
-The SDK provides a comprehensive set of functions for managing databases:
+## Authentication
 
 ```typescript
-// Create a new database
-const newDb = await client.database.create({ db_name: 'my_app_db' });
+// Sign up
+const signupRes = await client.auth.signup({
+  username: 'johndoe',
+  email: 'john@example.com',
+  password: 'securePassword123',
+});
+
+// Log in
+const loginRes = await client.auth.login({
+  email: 'john@example.com',
+  password: 'securePassword123',
+});
+client.setAuthToken(loginRes.token);
+
+// Get current user profile
+const me = await client.auth.getMe();
+
+// Update profile
+const updated = await client.auth.updateProfile({ username: 'newname' });
+
+// Find a user by ID
+const user = await client.auth.findUser('user-id-here');
+```
+
+## Database Operations
+
+```typescript
+// Create a database
+const db = await client.databases.create({ db_name: 'my_app_db' });
 
 // List all databases
-const allDbs = await client.database.list();
+const allDbs = await client.databases.list();
 
 // Delete a database
-await client.database.delete('my_app_db');
+await client.databases.delete('my_app_db');
 ```
 
-Each database operation returns detailed information about the database, including:
-
-- Database ID
-- User ID
-- Database name
-- File path
-- Creation timestamp
-- Number of tables
-- API key
-
-### Schema Operations
-
-Manage database schemas with the following operations:
+## Schema Operations
 
 ```typescript
-// Create a new schema
-const schema = await client.schema.create('my_app_db', {
-  name: 'users',
-  fields: [
-    { name: 'id', type: 'INTEGER', primaryKey: true },
+// Define a table schema
+const schema = await client.schema.define('my_app_db', {
+  table_name: 'users',
+  columns: [
+    { name: 'id', type: 'INTEGER', primary_key: true },
     { name: 'name', type: 'TEXT', nullable: false },
     { name: 'email', type: 'TEXT', unique: true },
   ],
 });
 
-// List all schemas in a database
-const schemas = await client.schema.list('my_app_db');
+// Create a table (alternative endpoint)
+const table = await client.schema.createTable('my_app_db', {
+  table_name: 'posts',
+  columns: [
+    { name: 'id', type: 'INTEGER', primary_key: true },
+    { name: 'title', type: 'TEXT' },
+  ],
+});
 
-// Get schema details
-const schemaDetails = await client.schema.get('my_app_db', 'users');
+// List all tables
+const tables = await client.schema.listTables('my_app_db');
 
-// Delete a schema
-await client.schema.delete('my_app_db', 'users');
+// Get a specific table's schema
+const tableSchema = await client.schema.getSchema('my_app_db', 'users');
+
+// Delete a table
+await client.schema.deleteTable('my_app_db', 'users');
 ```
 
-Schema operations support various field types and constraints:
-
-- Field Types: INTEGER, TEXT, BOOLEAN, FLOAT, DATE, etc.
-- Constraints: primaryKey, unique, nullable, default, etc.
-
-### Record Operations
-
-Perform CRUD operations on database records:
+## Record Operations
 
 ```typescript
-// Create a new record
-const newRecord = await client.record.create('my_app_db', 'users', {
+// Create a record
+const record = await client.records.create('my_app_db', 'users', {
   name: 'John Doe',
   email: 'john@example.com',
 });
 
-// Read records
-// Get all records
-const allRecords = await client.record.list('my_app_db', 'users');
+// List all records
+const allRecords = await client.records.list('my_app_db', 'users');
 
-// Get a specific record
-const record = await client.record.get('my_app_db', 'users', recordId);
-
-// Query records with filters
-const filteredRecords = await client.record.query('my_app_db', 'users', {
-  where: { email: 'john@example.com' },
-  limit: 10,
-  offset: 0,
+// List with filters
+const filtered = await client.records.list('my_app_db', 'users', {
+  name: 'John Doe',
 });
 
+// List with pagination, sorting, and field selection
+const paginated = await client.records.list('my_app_db', 'users', undefined, {
+  limit: 10,
+  offset: 0,
+  sort: 'name',
+  order: 'asc',
+  fields: 'id,name,email',
+});
+
+// Get a single record by ID
+const single = await client.records.get('my_app_db', 'users', 'record-id');
+
 // Update a record
-const updatedRecord = await client.record.update('my_app_db', 'users', recordId, {
-  name: 'John Smith',
+const updated = await client.records.update('my_app_db', 'users', 'record-id', {
+  name: 'Jane Doe',
 });
 
 // Delete a record
-await client.record.delete('my_app_db', 'users', recordId);
+await client.records.delete('my_app_db', 'users', 'record-id');
 ```
 
-Record operations support:
+## API Key Management
 
-- Filtering and querying with complex conditions
-- Pagination with limit and offset
-- Sorting by any field
-- Batch operations for multiple records
-- Transaction support for atomic operations
+```typescript
+// Create an API key for a database
+const key = await client.databases.createApiKey('my_app_db');
+
+// Retrieve the existing API key
+const existing = await client.databases.getApiKey('my_app_db');
+
+// Delete an API key
+await client.databases.deleteApiKey('my_app_db');
+```
+
+## Error Handling
+
+The SDK throws typed errors for different failure scenarios:
+
+```typescript
+import { AuthError, NotFoundError, BadRequestError } from 'nebula-sdk-ts';
+
+try {
+  await client.databases.create({ db_name: 'my_db' });
+} catch (error) {
+  if (error instanceof AuthError) {
+    // 401 - Invalid or missing credentials
+  } else if (error instanceof BadRequestError) {
+    // 400 - Invalid request payload
+  } else if (error instanceof NotFoundError) {
+    // 404 - Resource not found
+  }
+}
+```
+
+**Available error classes:** `AuthError`, `BadRequestError`, `ForbiddenError`, `NotFoundError`, `RateLimitError`, `ServerError`, `TimeoutError`, `NetworkError`
 
 ## Development
-
-### Setup
-
-1. Clone the repository:
 
 ```bash
 git clone https://github.com/Annany2002/nebula-sdk-ts.git
 cd nebula-sdk-ts
-```
-
-2. Install dependencies:
-
-```bash
 npm install
 ```
 
-### Available Scripts
-
-- `npm run build` - Build the TypeScript code
-- `npm run test` - Run tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run coverage` - Generate test coverage report
-- `npm run lint` - Run ESLint
-- `npm run format` - Format code using Prettier
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Build TypeScript to `dist/` |
+| `npm test` | Run tests |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run coverage` | Generate coverage report |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format with Prettier |
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-For support, please open an issue in the [GitHub repository](https://github.com/Annany2002/nebula-sdk-ts/issues).
+MIT -- see [LICENSE](LICENSE) for details.
