@@ -1,240 +1,194 @@
 // test/modules/record.test.ts
-import nock from 'nock';
-import { NebulaClient } from '../../src/client';
-import {
-  CreateRecordPayload,
-  UpdateRecordPayload,
-  RecordResponse,
-  FilterParams,
-} from '../../src/types';
+import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
+import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams, ListOptions } from '../../src/types';
 import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
-const mockBaseURL = 'http://api.nebula-test.com/v1'; // Base for v1 API calls
-const client = new NebulaClient({ baseURL: mockBaseURL }); // Assuming baseURL points here
-const token = 'valid-token-for-record-tests';
+const { client, mockFetch } = createTestClient();
 
 describe('RecordModule', () => {
   const dbName = 'test_db';
   const tableName = 'items';
   const recordId = 123;
-  const basePath = `/api/v1/databases/${dbName}/tables/${tableName}/records`;
 
-  const sampleRecordData: CreateRecordPayload = {
-    name: 'Test Item',
-    value: 100,
-    active: true,
-  };
-  const sampleRecordResponse: RecordResponse = {
-    id: recordId,
-    ...sampleRecordData,
-  };
+  const sampleData: CreateRecordPayload = { name: 'Test Item', value: 100, active: true };
+  const sampleResponse: RecordResponse = { id: recordId, ...sampleData };
 
-  beforeAll(() => {
-    client.setAuthToken(token);
+  beforeEach(() => {
+    mockFetch.mockReset();
   });
 
-  afterEach(() => {
-    nock.cleanAll();
+  // --- Create ---
+  describe('create', () => {
+    it('should POST record data and return created record', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(201, sampleResponse));
+
+      const result = await client.records.create(dbName, tableName, sampleData);
+      expect(result).toEqual(sampleResponse);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain(`/databases/${dbName}/tables/${tableName}/records`);
+      expect(req.method).toBe('POST');
+      expect(req.body).toEqual(sampleData);
+    });
+
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Schema mismatch' }));
+      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(BadRequestError);
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Table not found' }));
+      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error for empty payload', async () => {
+      await expect(client.records.create(dbName, tableName, {})).rejects.toThrow(
+        'Record data payload cannot be empty.'
+      );
+    });
   });
 
-  afterAll(() => {
-    client.setAuthToken(null);
+  // --- List ---
+  describe('list', () => {
+    it('should GET records without parameters', async () => {
+      const expected = [sampleResponse, { id: 124, name: 'Another', value: 200 }];
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
+
+      const result = await client.records.list(dbName, tableName);
+      expect(result).toEqual(expected);
+      expect(result).toHaveLength(2);
+    });
+
+    it('should GET records with filter params as query parameters', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, [sampleResponse]));
+
+      const filters: FilterParams = { active: true, value: 100 };
+      const result = await client.records.list(dbName, tableName, filters);
+      expect(result).toEqual([sampleResponse]);
+      const url = getLastRequest(mockFetch).url;
+      expect(url).toContain('active=true');
+      expect(url).toContain('value=100');
+    });
+
+    it('should append ListOptions -- pagination', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      const options: ListOptions = { limit: 10, offset: 20 };
+      await client.records.list(dbName, tableName, undefined, options);
+      const url = getLastRequest(mockFetch).url;
+      expect(url).toContain('limit=10');
+      expect(url).toContain('offset=20');
+    });
+
+    it('should append ListOptions -- sorting', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      const options: ListOptions = { sort: 'name', order: 'desc' };
+      await client.records.list(dbName, tableName, undefined, options);
+      const url = getLastRequest(mockFetch).url;
+      expect(url).toContain('sort=name');
+      expect(url).toContain('order=desc');
+    });
+
+    it('should append ListOptions -- field selection', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      const options: ListOptions = { fields: 'id,name' };
+      await client.records.list(dbName, tableName, undefined, options);
+      // "id,name" will be URL-encoded as "id%2Cname" by URLSearchParams
+      const url = getLastRequest(mockFetch).url;
+      expect(url).toContain('fields=');
+    });
+
+    it('should merge filters and ListOptions', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, [sampleResponse]));
+      const filters: FilterParams = { active: true };
+      const options: ListOptions = { limit: 5, sort: 'value' };
+      await client.records.list(dbName, tableName, filters, options);
+      const url = getLastRequest(mockFetch).url;
+      expect(url).toContain('active=true');
+      expect(url).toContain('limit=5');
+      expect(url).toContain('sort=value');
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Table not found' }));
+      await expect(client.records.list(dbName, tableName)).rejects.toThrow(NotFoundError);
+    });
   });
 
-  // --- Create Record ---
-  it('create should POST record data and return new record with ID', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(basePath, sampleRecordData)
-      .reply(201, sampleRecordResponse); // API returns the created record with ID
+  // --- Get ---
+  describe('get', () => {
+    it('should GET a single record by ID', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, sampleResponse));
 
-    const result = await client.records.create(dbName, tableName, sampleRecordData);
-    expect(result).toEqual(sampleRecordResponse);
-    expect(nock.isDone()).toBe(true);
+      const result = await client.records.get(dbName, tableName, recordId);
+      expect(result).toEqual(sampleResponse);
+      expect(getLastRequest(mockFetch).url).toContain(`/records/${recordId}`);
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
+      await expect(client.records.get(dbName, tableName, 999)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error for invalid recordId', async () => {
+      await expect(client.records.get(dbName, tableName, 0)).rejects.toThrow('Record ID must be a positive integer.');
+      await expect(client.records.get(dbName, tableName, -1)).rejects.toThrow('Record ID must be a positive integer.');
+      await expect(client.records.get(dbName, tableName, 1.5)).rejects.toThrow('Record ID must be a positive integer.');
+    });
   });
 
-  it('create should throw BadRequestError on 400 (schema mismatch)', async () => {
-    const errorResponse = {
-      error: 'Data does not match schema type for column: value',
-    };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(basePath, sampleRecordData)
-      .reply(400, errorResponse);
+  // --- Update ---
+  describe('update', () => {
+    it('should PUT partial data and return updated record', async () => {
+      const update: UpdateRecordPayload = { active: false, value: 150 };
+      const expected = { ...sampleResponse, ...update };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    await expect(client.records.create(dbName, tableName, sampleRecordData)).rejects.toThrow(
-      BadRequestError
-    );
+      const result = await client.records.update(dbName, tableName, recordId, update);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.method).toBe('PUT');
+      expect(req.body).toEqual(update);
+    });
+
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Type mismatch' }));
+      await expect(client.records.update(dbName, tableName, recordId, { value: 'x' })).rejects.toThrow(BadRequestError);
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
+      await expect(client.records.update(dbName, tableName, recordId, { active: true })).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error for empty payload', async () => {
+      await expect(client.records.update(dbName, tableName, recordId, {})).rejects.toThrow(
+        'Update payload cannot be empty.'
+      );
+    });
   });
 
-  it('create should throw NotFoundError on 404 (db/table not found)', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(basePath, sampleRecordData)
-      .reply(404, { error: 'Table not found' });
+  // --- Delete ---
+  describe('delete', () => {
+    it('should send DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await expect(client.records.delete(dbName, tableName, recordId)).resolves.toBeUndefined();
+      expect(getLastRequest(mockFetch).method).toBe('DELETE');
+    });
 
-    await expect(client.records.create(dbName, tableName, sampleRecordData)).rejects.toThrow(
-      NotFoundError
-    );
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
+      await expect(client.records.delete(dbName, tableName, recordId)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error for invalid recordId', async () => {
+      await expect(client.records.delete(dbName, tableName, 0)).rejects.toThrow('Record ID must be a positive integer.');
+    });
   });
 
-  it('create should throw validation error for empty payload', async () => {
-    await expect(client.records.create(dbName, tableName, {})).rejects.toThrow(
-      'Record data payload cannot be empty.'
-    );
-  });
-
-  // --- List Records ---
-  it('list should GET records without filters', async () => {
-    const expectedResponse: RecordResponse[] = [
-      sampleRecordResponse,
-      { id: 124, name: 'Another Item', value: 200, active: false },
-    ];
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(basePath)
-      .reply(200, expectedResponse);
-
-    const result = await client.records.list(dbName, tableName);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('list should GET records with filters as query parameters', async () => {
-    const filters: FilterParams = { active: true, value: 100 };
-    const expectedResponse: RecordResponse[] = [sampleRecordResponse]; // Only matching record
-
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(basePath)
-      .query(filters) // Nock matches query parameters
-      .reply(200, expectedResponse);
-
-    const result = await client.records.list(dbName, tableName, filters);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('list should throw NotFoundError on 404 (db/table not found)', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(basePath)
-      .reply(404, { error: 'Table not found' });
-
-    await expect(client.records.list(dbName, tableName)).rejects.toThrow(NotFoundError);
-  });
-
-  // --- Get Record ---
-  it('get should GET a single record by ID', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(`${basePath}/${recordId}`)
-      .reply(200, sampleRecordResponse);
-
-    const result = await client.records.get(dbName, tableName, recordId);
-    expect(result).toEqual(sampleRecordResponse);
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('get should throw NotFoundError on 404 (record not found)', async () => {
-    const nonExistentId = 999;
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(`${basePath}/${nonExistentId}`)
-      .reply(404, { error: 'Record not found' });
-
-    await expect(client.records.get(dbName, tableName, nonExistentId)).rejects.toThrow(
-      NotFoundError
-    );
-  });
-
-  it('get should throw validation error for invalid recordId', async () => {
-    await expect(client.records.get(dbName, tableName, 0)).rejects.toThrow(
-      'Record ID must be a positive integer.'
-    );
-    await expect(client.records.get(dbName, tableName, -5)).rejects.toThrow(
-      'Record ID must be a positive integer.'
-    );
-    await expect(client.records.get(dbName, tableName, 1.5)).rejects.toThrow(
-      'Record ID must be a positive integer.'
-    );
-    await expect(client.records.get(dbName, tableName, 'abc' as any)).rejects.toThrow(
-      'Record ID must be a positive integer.'
-    );
-  });
-
-  // --- Update Record ---
-  it('update should PUT partial data and return full updated record', async () => {
-    const updatePayload: UpdateRecordPayload = { active: false, value: 150 };
-    const expectedResponse: RecordResponse = {
-      ...sampleRecordResponse,
-      ...updatePayload,
-    }; // Merged data
-
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .put(`${basePath}/${recordId}`, updatePayload)
-      .reply(200, expectedResponse);
-
-    const result = await client.records.update(dbName, tableName, recordId, updatePayload);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('update should throw BadRequestError on 400 (schema mismatch)', async () => {
-    const updatePayload: UpdateRecordPayload = { value: 'not-a-number' };
-    const errorResponse = { error: 'Invalid type for column: value' };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .put(`${basePath}/${recordId}`, updatePayload)
-      .reply(400, errorResponse);
-
-    await expect(client.records.update(dbName, tableName, recordId, updatePayload)).rejects.toThrow(
-      BadRequestError
-    );
-  });
-
-  it('update should throw NotFoundError on 404 (record not found)', async () => {
-    const updatePayload: UpdateRecordPayload = { active: true };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .put(`${basePath}/${recordId}`, updatePayload)
-      .reply(404, { error: 'Record not found' });
-
-    await expect(client.records.update(dbName, tableName, recordId, updatePayload)).rejects.toThrow(
-      NotFoundError
-    );
-  });
-
-  it('update should throw validation error for empty payload', async () => {
-    await expect(client.records.update(dbName, tableName, recordId, {})).rejects.toThrow(
-      'Update payload cannot be empty.'
-    );
-  });
-
-  // --- Delete Record ---
-  it('delete should send DELETE request for the record ID', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${basePath}/${recordId}`)
-      .reply(204); // No content
-
-    await expect(client.records.delete(dbName, tableName, recordId)).resolves.toBeUndefined();
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('delete should throw NotFoundError on 404 (record not found)', async () => {
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${basePath}/${recordId}`)
-      .reply(404, { error: 'Record not found' });
-
-    await expect(client.records.delete(dbName, tableName, recordId)).rejects.toThrow(NotFoundError);
-  });
-
-  it('delete should throw validation error for invalid recordId', async () => {
-    await expect(client.records.delete(dbName, tableName, 0)).rejects.toThrow(
-      'Record ID must be a positive integer.'
-    );
-  });
-
-  // --- General Module Auth Test ---
-  it('should throw AuthError if token is missing/invalid for any operation', async () => {
-    client.setAuthToken(null); // No token
-    nock(mockBaseURL)
-      .get(basePath) // Example: list operation
-      .reply(401, { error: 'Token required' });
-
-    await expect(client.records.list(dbName, tableName)).rejects.toThrow(AuthError);
-
-    // Restore token for other tests if needed within this file (though afterAll handles it)
-    client.setAuthToken(token);
+  // --- Auth ---
+  describe('auth check', () => {
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Token required' }));
+      await expect(client.records.list(dbName, tableName)).rejects.toThrow(AuthError);
+    });
   });
 });

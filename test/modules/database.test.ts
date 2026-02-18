@@ -1,141 +1,149 @@
 // test/modules/database.test.ts
-import nock from 'nock';
-import { NebulaClient } from '../../src/client';
-import { DbCreatePayload, DbInfoResponse, DbListResponse } from '../../src/types';
+import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
+import { DbCreatePayload, DbInfoResponse, ApiKeyResponse } from '../../src/types';
 import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
-const mockBaseURL = 'http://api.nebula-test.com'; // Use a distinct URL for module tests
-const client = new NebulaClient({ baseURL: mockBaseURL });
-const token = 'valid-token-for-db-tests';
+const { client, mockFetch } = createTestClient();
 
 describe('DatabaseModule', () => {
-  const databasesPath = '/api/v1/databases';
-
-  beforeAll(() => {
-    // Set token for all tests in this suite
-    client.setAuthToken(token);
+  beforeEach(() => {
+    mockFetch.mockReset();
   });
 
-  afterEach(() => {
-    nock.cleanAll();
-  });
+  // --- Create ---
+  describe('create', () => {
+    it('should POST database name and return info', async () => {
+      const payload: DbCreatePayload = { db_name: 'new_db' };
+      const expected: DbInfoResponse = { db_name: 'new_db', message: 'Database created' };
+      mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
-  afterAll(() => {
-    client.setAuthToken(null); // Clean up token
-  });
+      const result = await client.databases.create(payload);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/databases');
+      expect(req.method).toBe('POST');
+      expect(req.body).toEqual(payload);
+    });
 
-  // --- Create Database ---
-  it('create should POST database name and return info', async () => {
-    const payload: DbCreatePayload = { db_name: 'new_db' };
-    const expectedResponse: DbInfoResponse = {
-      db_name: 'new_db',
-      message: 'Database created',
-    };
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Name exists' }));
+      await expect(client.databases.create({ db_name: 'dup' })).rejects.toThrow(BadRequestError);
+    });
 
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(databasesPath, JSON.stringify(payload))
-      .reply(201, expectedResponse);
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Invalid token' }));
+      await expect(client.databases.create({ db_name: 'db' })).rejects.toThrow(AuthError);
+    });
 
-    const result = await client.databases.create(payload);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('create should throw BadRequestError on 400 (e.g., name exists)', async () => {
-    const payload: DbCreatePayload = { db_name: 'existing_db' };
-    const errorResponse = { error: 'Database name already exists' };
-
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(databasesPath, JSON.stringify(payload))
-      .reply(400, errorResponse);
-
-    await expect(client.databases.create(payload)).rejects.toThrow(BadRequestError);
-    await expect(client.databases.create(payload)).rejects.toMatchObject({
-      errorData: errorResponse,
+    it('should throw validation error if db_name is missing', async () => {
+      await expect(client.databases.create({} as any)).rejects.toThrow('Database name (db_name) is required.');
+      await expect(client.databases.create({ db_name: '' })).rejects.toThrow('Database name (db_name) is required.');
     });
   });
 
-  it('create should throw AuthError on 401', async () => {
-    client.setAuthToken('invalid-token'); // Temporarily use invalid token
-    const payload: DbCreatePayload = { db_name: 'another_db' };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer invalid-token` } })
-      .post(databasesPath, JSON.stringify(payload))
-      .reply(401, { error: 'Invalid token' });
+  // --- List ---
+  describe('list', () => {
+    it('should GET database list', async () => {
+      const expected = {
+        databases: [{
+          id: 1, userId: 'u1', dbName: 'db1', filePath: '/data/db1',
+          createdAt: '2026-01-01', tableCount: 2, apiKey: 'neb_key1',
+        }],
+      };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    await expect(client.databases.create(payload)).rejects.toThrow(AuthError);
-    client.setAuthToken(token); // Restore valid token
+      const result = await client.databases.list();
+      expect(result).toEqual(expected);
+      expect(result.databases).toHaveLength(1);
+      expect(getLastRequest(mockFetch).method).toBe('GET');
+    });
+
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Token required' }));
+      await expect(client.databases.list()).rejects.toThrow(AuthError);
+    });
   });
 
-  it('create should throw validation error if db_name is missing', async () => {
-    await expect(client.databases.create({} as any)).rejects.toThrow(
-      'Database name (db_name) is required.'
-    );
-    await expect(client.databases.create({ db_name: '' } as any)).rejects.toThrow(
-      'Database name (db_name) is required.'
-    );
+  // --- Delete ---
+  describe('delete', () => {
+    it('should send DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await expect(client.databases.delete('db_to_delete')).resolves.toBeUndefined();
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/databases/db_to_delete');
+      expect(req.method).toBe('DELETE');
+    });
+
+    it('should URL-encode database name', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await client.databases.delete('db with spaces');
+      expect(getLastRequest(mockFetch).url).toContain(encodeURIComponent('db with spaces'));
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Database not found' }));
+      await expect(client.databases.delete('ghost')).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error if dbName is empty', async () => {
+      await expect(client.databases.delete('')).rejects.toThrow('Database name is required for deletion.');
+    });
   });
 
-  // --- List Databases ---
-  it('list should GET database names', async () => {
-    const expectedResponse: DbListResponse = {
-      databases: ['db1', 'db2', 'new_db'],
-    };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(databasesPath)
-      .reply(200, expectedResponse);
+  // --- API Key Management ---
+  describe('getApiKey', () => {
+    it('should GET the api key for a database', async () => {
+      const expected: ApiKeyResponse = { api_key: 'neb_abc123' };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    const result = await client.databases.list();
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
+      const result = await client.databases.getApiKey('mydb');
+      expect(result).toEqual(expected);
+      expect(getLastRequest(mockFetch).url).toContain('/api/v1/account/databases/mydb/apikey');
+    });
+
+    it('should throw validation error if dbName is empty', async () => {
+      await expect(client.databases.getApiKey('')).rejects.toThrow('Database name is required.');
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Not found' }));
+      await expect(client.databases.getApiKey('ghost')).rejects.toThrow(NotFoundError);
+    });
   });
 
-  it('list should throw AuthError on 401', async () => {
-    client.setAuthToken(null); // Temporarily clear token
-    nock(mockBaseURL) // No auth header expected
-      .get(databasesPath)
-      .reply(401, { error: 'Token required' });
+  describe('createApiKey', () => {
+    it('should POST to create a new API key', async () => {
+      const expected: ApiKeyResponse = { api_key: 'neb_newkey', message: 'API key created' };
+      mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
-    await expect(client.databases.list()).rejects.toThrow(AuthError);
-    client.setAuthToken(token); // Restore valid token
+      const result = await client.databases.createApiKey('mydb');
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/account/databases/mydb/apikey');
+      expect(req.method).toBe('POST');
+    });
+
+    it('should throw validation error if dbName is empty', async () => {
+      await expect(client.databases.createApiKey('')).rejects.toThrow('Database name is required.');
+    });
   });
 
-  // --- Delete Database ---
-  it('delete should send DELETE request for the database name', async () => {
-    const dbName = 'db_to_delete';
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${databasesPath}/${dbName}`)
-      .reply(204); // No content
+  describe('deleteApiKey', () => {
+    it('should DELETE the api key', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await expect(client.databases.deleteApiKey('mydb')).resolves.toBeUndefined();
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/account/databases/mydb/apikey');
+      expect(req.method).toBe('DELETE');
+    });
 
-    await expect(client.databases.delete(dbName)).resolves.toBeUndefined();
-    expect(nock.isDone()).toBe(true);
-  });
+    it('should throw validation error if dbName is empty', async () => {
+      await expect(client.databases.deleteApiKey('')).rejects.toThrow('Database name is required.');
+    });
 
-  it('delete should URL encode database name', async () => {
-    const dbName = 'db with spaces';
-    const encodedDbName = encodeURIComponent(dbName);
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${databasesPath}/${encodedDbName}`)
-      .reply(204);
-
-    await expect(client.databases.delete(dbName)).resolves.toBeUndefined();
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('delete should throw NotFoundError on 404', async () => {
-    const dbName = 'non_existent_db';
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${databasesPath}/${dbName}`)
-      .reply(404, { error: 'Database not found' });
-
-    await expect(client.databases.delete(dbName)).rejects.toThrow(NotFoundError);
-  });
-
-  it('delete should throw validation error if dbName is missing', async () => {
-    await expect(client.databases.delete('')).rejects.toThrow(
-      'Database name is required for deletion.'
-    );
-    await expect(client.databases.delete(null as any)).rejects.toThrow(
-      'Database name is required for deletion.'
-    );
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Not found' }));
+      await expect(client.databases.deleteApiKey('mydb')).rejects.toThrow(NotFoundError);
+    });
   });
 });

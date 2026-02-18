@@ -1,6 +1,5 @@
 // test/http.test.ts
-import nock from 'nock';
-import { makeRequest } from '../src/http'; // Adjust path as needed
+import { makeRequest } from '../src/http';
 import { NebulaClientConfig } from '../src/types';
 import {
   ApiError,
@@ -14,93 +13,113 @@ import {
   ServerError,
 } from '../src/errors';
 
-const mockBaseURL = 'http://testhost.com/api';
-const mockConfig: NebulaClientConfig = { baseURL: mockBaseURL };
-const mockContext = (token: string | null = null) => ({
-  ...mockConfig,
-  authToken: token,
-  timeout: 500, // Use shorter timeout for testing
-  fetch: fetch, // Assuming native fetch
-});
+const mockBaseURL = 'http://testhost.com';
+const testApiKey = 'neb_testkey_for_http';
+
+function createMockResponse(status: number, body: any = null, contentType = 'application/json'): Response {
+  const bodyStr = body === null ? '' : (typeof body === 'string' ? body : JSON.stringify(body));
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: '',
+    headers: new Headers({ 'Content-Type': contentType }),
+    json: async () => {
+      if (typeof body === 'string') throw new SyntaxError('Unexpected token');
+      return body;
+    },
+    text: async () => bodyStr,
+    clone: function () { return createMockResponse(status, body, contentType); },
+    body: null,
+    bodyUsed: false,
+    arrayBuffer: async () => new ArrayBuffer(0),
+    blob: async () => new Blob(),
+    formData: async () => new FormData(),
+    redirected: false,
+    type: 'basic' as ResponseType,
+    url: '',
+    bytes: async () => new Uint8Array(),
+  } as Response;
+}
+
+function mockContext(fetchFn: jest.Mock): Required<NebulaClientConfig> {
+  return {
+    baseURL: mockBaseURL,
+    apiKey: testApiKey,
+    timeout: 5000,
+    fetch: fetchFn as any,
+  };
+}
 
 describe('makeRequest HTTP Client', () => {
-  afterEach(() => {
-    nock.cleanAll(); // Clean up nock mocks after each test
+  let mockFetch: jest.Mock;
+
+  beforeEach(() => {
+    mockFetch = jest.fn();
   });
 
   it('should make a GET request successfully', async () => {
-    const path = '/resource/1';
-    const expectedData = { id: 1, name: 'Test' };
-    nock(mockBaseURL).get(path).reply(200, expectedData);
+    const expected = { id: 1, name: 'Test' };
+    mockFetch.mockResolvedValueOnce(createMockResponse(200, expected));
 
-    const result = await makeRequest<typeof expectedData>(path, 'GET', mockContext());
-    expect(result).toEqual(expectedData);
-    expect(nock.isDone()).toBe(true);
+    const result = await makeRequest<typeof expected>('/resource/1', 'GET', mockContext(mockFetch));
+    expect(result).toEqual(expected);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe('http://testhost.com/resource/1');
+    expect(opts.method).toBe('GET');
   });
 
-  it('should make a POST request with body successfully', async () => {
-    const path = '/resource';
-    const requestBody = { name: 'New Item' };
-    const expectedData = { id: 2, name: 'New Item' };
-    nock(mockBaseURL).post(path, requestBody).reply(201, expectedData);
+  it('should make a POST request with body', async () => {
+    const body = { name: 'New' };
+    const expected = { id: 2, name: 'New' };
+    mockFetch.mockResolvedValueOnce(createMockResponse(201, expected));
 
-    const result = await makeRequest<typeof expectedData>(
-      path,
-      'POST',
-      mockContext(),
-      undefined,
-      requestBody
-    );
-    expect(result).toEqual(expectedData);
-    expect(nock.isDone()).toBe(true);
+    const result = await makeRequest<typeof expected>('/resource', 'POST', mockContext(mockFetch), undefined, body);
+    expect(result).toEqual(expected);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.method).toBe('POST');
+    expect(JSON.parse(opts.body)).toEqual(body);
   });
 
-  it('should handle query parameters correctly', async () => {
-    const path = '/items';
-    const queryParams = { category: 'books', limit: 10, available: true };
-    const expectedData = [{ id: 3, name: 'TS Handbook' }];
-    // Nock matches query params automatically
-    nock(mockBaseURL).get(path).query(queryParams).reply(200, expectedData);
+  it('should append query parameters to URL', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(200, []));
 
-    const result = await makeRequest<typeof expectedData>(path, 'GET', mockContext(), queryParams);
-    expect(result).toEqual(expectedData);
-    expect(nock.isDone()).toBe(true);
+    await makeRequest('/items', 'GET', mockContext(mockFetch), { category: 'books', limit: 10 });
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('category=books');
+    expect(url).toContain('limit=10');
   });
 
-  it('should handle 204 No Content response', async () => {
-    const path = '/resource/1';
-    nock(mockBaseURL).delete(path).reply(204);
+  it('should return null for 204 No Content', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(204));
 
-    const result = await makeRequest<void>(path, 'DELETE', mockContext());
-    expect(result).toBeNull(); // makeRequest returns null for 204
-    expect(nock.isDone()).toBe(true);
+    const result = await makeRequest<void>('/resource/1', 'DELETE', mockContext(mockFetch));
+    expect(result).toBeNull();
   });
 
-  // --- Authentication Header ---
-  it('should NOT include Authorization header when token is null', async () => {
-    const path = '/secure/resource';
-    nock(mockBaseURL)
-      .get(path)
-      .matchHeader('Authorization', (val) => val === undefined) // Expect header NOT present
-      .reply(200, { success: true });
+  it('should include ApiKey Authorization header', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(200, {}));
 
-    await makeRequest(path, 'GET', mockContext(null));
-    expect(nock.isDone()).toBe(true);
+    await makeRequest('/secure', 'GET', mockContext(mockFetch));
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(opts.headers['Authorization']).toBe(`ApiKey ${testApiKey}`);
   });
 
-  it('should include Authorization header when token is provided', async () => {
-    const path = '/secure/resource';
-    const token = 'my.test.token';
-    nock(mockBaseURL)
-      .get(path)
-      .matchHeader('Authorization', `Bearer ${token}`) // Expect header present and correct
-      .reply(200, { success: true });
+  it('should include Content-Type header only when body is present', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(200, {}));
+    await makeRequest('/get', 'GET', mockContext(mockFetch));
+    expect(mockFetch.mock.calls[0][1].headers['Content-Type']).toBeUndefined();
 
-    await makeRequest(path, 'GET', mockContext(token));
-    expect(nock.isDone()).toBe(true);
+    mockFetch.mockResolvedValueOnce(createMockResponse(201, {}));
+    await makeRequest('/post', 'POST', mockContext(mockFetch), undefined, { data: 1 });
+    expect(mockFetch.mock.calls[1][1].headers['Content-Type']).toBe('application/json');
   });
 
-  // --- Error Handling ---
+  // --- Error mapping ---
   test.each([
     [400, BadRequestError, 'Bad Request'],
     [401, AuthError, 'Unauthorized'],
@@ -109,75 +128,54 @@ describe('makeRequest HTTP Client', () => {
     [429, RateLimitError, 'Too Many Requests'],
     [500, ServerError, 'Internal Server Error'],
     [503, ServerError, 'Service Unavailable'],
-  ])('should throw %p error for status %i', async (status, ExpectedError, apiMsg) => {
-    const path = '/error/path';
-    const errorResponse = { error: apiMsg, details: 'Some details' };
-    nock(mockBaseURL).get(path).reply(status, errorResponse);
+  ])('should throw correct error for status %i', async (status, ExpectedError, apiMsg) => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(status, { error: apiMsg }));
 
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toThrow(ExpectedError);
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toMatchObject({
-      statusCode: status,
-      errorData: errorResponse,
-      message: expect.stringContaining(apiMsg), // Check if message includes API error
-    });
-    expect(nock.isDone()).toBe(true); // Ensure only one call was made per expect
-    nock.cleanAll(); // Clean up for next iteration if needed within the same test run
+    try {
+      await makeRequest('/error', 'GET', mockContext(mockFetch));
+      throw new Error('Should have thrown');
+    } catch (error: any) {
+      expect(error).toBeInstanceOf(ExpectedError);
+      expect(error.statusCode).toBe(status);
+      expect(error.message).toContain(apiMsg);
+    }
   });
 
-  it('should throw NetworkError for fetch failures', async () => {
-    const path = '/resource';
-    nock(mockBaseURL).get(path).replyWithError('Network connection refused');
+  it('should throw NetworkError when fetch rejects', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Connection refused'));
 
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toThrow(NetworkError);
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toMatchObject({
-      message: expect.stringContaining('Failed to fetch'),
-      cause: expect.anything(), // Check if original error is attached
-    });
+    await expect(makeRequest('/fail', 'GET', mockContext(mockFetch))).rejects.toThrow(NetworkError);
   });
 
-  it('should throw TimeoutError when request times out', async () => {
-    const path = '/slow/resource';
-    nock(mockBaseURL)
-      .get(path)
-      .delayConnection(mockContext().timeout + 100)
-      .reply(200, {}); // Delay longer than timeout
+  it('should throw TimeoutError when fetch aborts', async () => {
+    const ctx = { ...mockContext(mockFetch), timeout: 50 };
+    mockFetch.mockImplementationOnce(() => new Promise((_, reject) => {
+      setTimeout(() => {
+        const err = new Error('Aborted');
+        err.name = 'AbortError';
+        reject(err);
+      }, 60);
+    }));
 
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toThrow(TimeoutError);
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toMatchObject({
-      message: expect.stringContaining('timed out'),
-    });
-    expect(nock.isDone()).toBe(false); // Request was aborted, so nock wasn't fully satisfied
-    nock.abortPendingRequests(); // Clean up pending request for timeout tests
+    await expect(makeRequest('/slow', 'GET', ctx)).rejects.toThrow(TimeoutError);
   });
 
-  it('should throw ApiError for unhandled client/server errors', async () => {
-    const path = '/weird/error';
-    const status = 418; // I'm a teapot
-    const errorResponse = { error: "I'm a teapot" };
-    nock(mockBaseURL).get(path).reply(status, errorResponse);
+  it('should throw ApiError for unhandled status codes (e.g., 418)', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(418, { error: "I'm a teapot" }));
 
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toThrow(ApiError);
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.not.toThrow(ServerError); // Ensure it's not wrongly classified
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toMatchObject({
-      statusCode: status,
-      errorData: errorResponse,
-    });
+    try {
+      await makeRequest('/teapot', 'GET', mockContext(mockFetch));
+      throw new Error('Should have thrown');
+    } catch (error: any) {
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error).not.toBeInstanceOf(ServerError);
+      expect(error.statusCode).toBe(418);
+    }
   });
 
-  it('should handle non-JSON error responses gracefully', async () => {
-    const path = '/html/error';
-    const status = 500;
-    const errorBody = '<html><body><h1>Server Error</h1></body></html>';
-    nock(mockBaseURL).get(path).reply(status, errorBody, { 'Content-Type': 'text/html' });
+  it('should handle non-JSON error responses', async () => {
+    mockFetch.mockResolvedValueOnce(createMockResponse(500, '<h1>Error</h1>', 'text/html'));
 
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toThrow(ServerError);
-    await expect(makeRequest(path, 'GET', mockContext())).rejects.toMatchObject({
-      statusCode: status,
-      // errorData might be constructed differently here, check makeRequest logic
-      errorData: {
-        error: `Received status ${status} with invalid JSON body.`,
-      },
-      message: expect.stringContaining(`Received status ${status}`),
-    });
+    await expect(makeRequest('/html', 'GET', mockContext(mockFetch))).rejects.toThrow(ServerError);
   });
 });

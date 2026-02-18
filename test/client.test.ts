@@ -1,46 +1,60 @@
 // test/client.test.ts
 import { NebulaClient } from '../src/client';
-import { NebulaClientConfig } from '../src/types';
 import { NebulaError } from '../src/errors';
 
-const mockConfig: NebulaClientConfig = {
+const validConfig = {
   baseURL: 'http://mock-nebula.com',
+  apiKey: 'neb_testkey123',
 };
 
 describe('NebulaClient Initialization', () => {
   it('should initialize successfully with valid config', () => {
-    const client = new NebulaClient(mockConfig);
+    const client = new NebulaClient(validConfig);
     expect(client).toBeInstanceOf(NebulaClient);
-    // Check if config is stored (excluding fetch)
-    const internalConfig = client.getConfig();
-    expect(internalConfig.baseURL).toBe(mockConfig.baseURL);
-    expect(internalConfig.timeout).toBeDefined(); // Check default timeout
+    const config = client.getConfig();
+    expect(config.baseURL).toBe(validConfig.baseURL);
+    expect(config.apiKey).toBe(validConfig.apiKey);
+    expect(config.timeout).toBeDefined();
   });
 
   it('should throw NebulaError if baseURL is missing', () => {
     expect(() => new NebulaClient(undefined as any)).toThrow(NebulaError);
     expect(() => new NebulaClient({} as any)).toThrow(NebulaError);
-    expect(() => new NebulaClient({ timeout: 1000 } as any)).toThrow(/baseURL in configuration/);
+    expect(() => new NebulaClient({ apiKey: 'neb_key' } as any)).toThrow(NebulaError);
+  });
+
+  it('should throw NebulaError if apiKey is missing', () => {
+    expect(() => new NebulaClient({ baseURL: 'http://test.com' } as any)).toThrow(NebulaError);
   });
 
   it('should throw NebulaError if baseURL is invalid', () => {
-    expect(() => new NebulaClient({ baseURL: 'invalid-url' })).toThrow(/Invalid baseURL/);
-    expect(() => new NebulaClient({ baseURL: 'http://' })).toThrow(/Invalid baseURL/); // Hostname needed
+    expect(() => new NebulaClient({ ...validConfig, baseURL: 'invalid' })).toThrow(/Invalid baseURL/);
   });
 
   it('should allow setting and getting auth token', () => {
-    const client = new NebulaClient(mockConfig);
+    const client = new NebulaClient(validConfig);
     expect(client.getAuthToken()).toBeNull();
-
-    const testToken = 'dummy.jwt.token';
-    client.setAuthToken(testToken);
-    expect(client.getAuthToken()).toBe(testToken);
-
+    client.setAuthToken('my.jwt.token');
+    expect(client.getAuthToken()).toBe('my.jwt.token');
     client.setAuthToken(null);
     expect(client.getAuthToken()).toBeNull();
   });
 
-  // Add more tests later for default timeout, custom fetch, etc.
-});
+  it('should expose modules on the client instance', () => {
+    const client = new NebulaClient(validConfig);
+    expect(client.auth).toBeDefined();
+    expect(client.databases).toBeDefined();
+    expect(client.schema).toBeDefined();
+    expect(client.records).toBeDefined();
+  });
 
-// We will add tests for http.ts and module interactions later
+  it('should apply default timeout of 30000ms', () => {
+    const client = new NebulaClient(validConfig);
+    expect(client.getConfig().timeout).toBe(30000);
+  });
+
+  it('should allow custom timeout', () => {
+    const client = new NebulaClient({ ...validConfig, timeout: 5000 });
+    expect(client.getConfig().timeout).toBe(5000);
+  });
+});

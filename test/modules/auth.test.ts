@@ -1,153 +1,149 @@
-// test/modules/auth.test.ts (or a new test file focused on API Key access if AuthModule changes significantly)
-import nock from 'nock';
-import { NebulaClient } from '../../src/client'; // Client would be configured with apiKey only
-import { AuthError, ApiError } from '../../src/errors'; // Assuming 401 maps to AuthError
-import { makeRequest } from '../../src/http'; // This is the updated makeRequest
-import { NebulaClientConfig } from '../../src/types';
+// test/modules/auth.test.ts
+import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
+import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
-const mockBaseURL = 'http://localhost:8080';
-const validFullApiKey = 'neb_uDRpC13L1Cj10tvcGkHujiypdKUAlBnIcrkXAzwW7sE'; // Provided by SDK user
-const invalidFullApiKey = 'neb_totallywrongsecretpart'; // For testing invalid key scenario
-const nonPrefixedApiKey = 'justakeywithoutprefix'; // For testing prefix validation by backend
+const { client, mockFetch } = createTestClient();
 
-// Context for API-Key-Only SDK requests
-const mockApiRequestContext = (apiKeyToUse: string): Required<NebulaClientConfig> => ({
-  baseURL: mockBaseURL,
-  apiKey: apiKeyToUse,
-  timeout: 500,
-  fetch: globalThis.fetch as any, // Cast if necessary or ensure fetch type matches
-});
-
-describe('SDK Access to Protected /api/v1/health (using ApiKey Scheme)', () => {
-  const healthPath = '/api/v1/health';
-
-  afterEach(() => {
-    nock.cleanAll();
+describe('AuthModule', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
   });
 
-  it('should succeed with a valid API Key in Authorization header', async () => {
-    const successResponse = { status: 'ok', authenticated_by: 'api_key' }; // Example response
-    nock(mockBaseURL)
-      .get(healthPath)
-      .matchHeader('Authorization', `ApiKey ${validFullApiKey}`) // This must match exactly
-      .reply(200, successResponse);
+  // --- Signup ---
+  describe('signup', () => {
+    it('should POST credentials and return signup response', async () => {
+      const credentials = { username: 'newuser', email: 'new@test.com', password: 'pass123' };
+      const expected = { message: 'Account created', userId: 'u123' };
+      mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
-    const response = await makeRequest(healthPath, 'GET', mockApiRequestContext(validFullApiKey));
+      const result = await client.auth.signup(credentials);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/auth/signup');
+      expect(req.method).toBe('POST');
+      expect(req.body).toEqual(credentials);
+    });
 
-    expect(response).toEqual(successResponse);
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Invalid email' }));
+      await expect(client.auth.signup({ username: 'x', email: 'bad', password: '1' }))
+        .rejects.toThrow(BadRequestError);
+    });
   });
 
-  it('should fail with AuthError if API Key (secret part) is invalid', async () => {
-    // Assuming your Go backend's bcrypt check fails and returns ErrUnauthorized (mapped to 401)
-    const backendErrorResponse = {
-      error: 'Invalid API key',
-      authenticated_by: 'api_key',
-      status: 'ok',
-    }; // Or your specific error for invalid key
-    const scope = nock(mockBaseURL)
-      .get(healthPath)
-      .matchHeader('Authorization', `ApiKey ${invalidFullApiKey}`)
-      .reply(401, backendErrorResponse);
+  // --- Login ---
+  describe('login', () => {
+    it('should POST credentials and return token', async () => {
+      const credentials = { email: 'user@test.com', password: 'pass123' };
+      const expected = { token: 'jwt.token.here', user: { userId: 'u1' } };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    const response = await makeRequest(healthPath, 'GET', mockApiRequestContext(validFullApiKey));
+      const result = await client.auth.login(credentials);
+      expect(result).toEqual(expected);
+      expect(result.token).toBe('jwt.token.here');
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/auth/login');
+      expect(req.method).toBe('POST');
+    });
 
-    expect(response).toEqual(backendErrorResponse);
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Invalid credentials' }));
+      await expect(client.auth.login({ email: 'user@test.com', password: 'wrong' }))
+        .rejects.toThrow(AuthError);
+    });
   });
 
-  it('should fail if API Key is missing "neb_" prefix (backend schema validation)', async () => {
-    // Your Go middleware: if !strings.HasPrefix(credentials, apiKeyPrefix) -> ErrTokenMalformed
-    // Let's assume ErrTokenMalformed gets mapped by your global error handler to 401/400
-    // with a message like "token is malformed" or "invalid key prefix"
-    const backendErrorResponse = { error: 'token is malformed: invalid key prefix' }; // Example
-    const scope = nock(mockBaseURL)
-      .get(healthPath)
-      .matchHeader('Authorization', `ApiKey ${nonPrefixedApiKey}`)
-      .reply(401, backendErrorResponse); // Or 400, depending on your error handler for ErrTokenMalformed
+  // --- Health Check ---
+  describe('healthP', () => {
+    it('should GET /api/v1/health with ApiKey header', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, { status: 'ok' }));
 
-    try {
-      await makeRequest(healthPath, 'GET', mockApiRequestContext(nonPrefixedApiKey));
-      throw new Error('Test should have thrown for API Key missing prefix');
-    } catch (error: any) {
-      expect(error).toBeInstanceOf(AuthError); // Or BadRequestError if mapped to 400
-      expect(error.statusCode).toBe(401); // Or 400
-      expect(error.message).toContain('invalid key prefix'); // Check the specific message
-      expect(error.errorData).toEqual(backendErrorResponse);
-    }
-    expect(scope.isDone()).toBe(true);
+      const result = await client.auth.healthP();
+      expect(result).toBeDefined();
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/health');
+      expect(req.headers['Authorization']).toContain('ApiKey');
+    });
+
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Invalid API key' }));
+      await expect(client.auth.healthP()).rejects.toThrow(AuthError);
+    });
   });
 
-  it('should fail if Authorization header is completely missing (backend validation)', async () => {
-    // This tests the backend's requirement for the Authorization header itself.
-    // To make the SDK *not* send the header, we'd need to call makeRequest
-    // with a context where apiKey is undefined/null, and makeRequest would have to
-    // conditionally omit the header.
-    // If makeRequest *always* sends "Authorization: ApiKey <value>", even if value is "",
-    // this specific test of a *completely missing header from SDK* is hard.
-    // Instead, let's test what the SDK does if configured with an empty API Key string.
-    // The Go middleware will receive "ApiKey " (ApiKey plus a space).
-    // `credentials` will be "". `strings.HasPrefix("", "neb_")` is false. -> ErrTokenMalformed.
-    const emptyApiKey = '';
-    // The backend will respond based on: `parts := strings.SplitN(authHeader, " ", 2)` -> `parts[0]="ApiKey", parts[1]=""`
-    // Then `strings.HasPrefix(parts[1], "neb_")` will be `strings.HasPrefix("", "neb_")` which is false.
-    // So, it will trigger the "invalid key prefix" path of `ErrTokenMalformed`.
-    const backendErrorResponse = { error: 'token is malformed: invalid key prefix' }; // Or your specific mapping
-    const scope = nock(mockBaseURL)
-      .get(healthPath)
-      .matchHeader('Authorization', `ApiKey ${emptyApiKey}`) // SDK sends "ApiKey "
-      .reply(401, backendErrorResponse); // Backend validation for prefix fails
+  // --- GetMe ---
+  describe('getMe', () => {
+    it('should GET /api/v1/account/user/me', async () => {
+      const userInfo = { userId: 'u1', username: 'john', email: 'john@test.com', createdAt: '2026-01-01' };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
 
-    try {
-      await makeRequest(healthPath, 'GET', mockApiRequestContext(emptyApiKey));
-      throw new Error('Test should have thrown for empty API Key string');
-    } catch (error: any) {
-      expect(error).toBeInstanceOf(AuthError); // Assuming 401 maps to AuthError
-      expect(error.statusCode).toBe(401);
-      expect(error.message).toContain('invalid key prefix');
-      expect(error.errorData).toEqual(backendErrorResponse);
-    }
-    expect(scope.isDone()).toBe(true);
+      const result = await client.auth.getMe();
+      expect(result).toEqual(userInfo);
+      expect(getLastRequest(mockFetch).url).toContain('/api/v1/account/user/me');
+    });
+
+    it('should throw AuthError on 401', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Token expired' }));
+      await expect(client.auth.getMe()).rejects.toThrow(AuthError);
+    });
   });
 
-  it('should fail if Authorization header has wrong scheme (e.g., "InvalidScheme")', async () => {
-    const wrongSchemeApiKey = 'neb_somekey'; // This key value is fine
-    // The backend error for this is: "Authorization header format must be 'Bearer {token}' or 'ApiKey {key}'"
-    // This comes if scheme is not "apikey" or "bearer".
-    // However, our SDK's makeRequest *always* sends "ApiKey <key>".
-    // So, this particular error ("wrong scheme") cannot be triggered by the current SDK's makeRequest.
-    // This would be for testing external clients calling your backend with a bad scheme.
-    // If we wanted to test the SDK handling such a response *if it somehow occurred*:
-    const backendErrorResponse = {
-      error: "Authorization header format must be 'Bearer {token}' or 'ApiKey {key}'",
-    };
-    const scope = nock(mockBaseURL)
-      .get(healthPath)
-      // We can't easily make our SDK send a "WrongScheme" header.
-      // So we assume some other client sent it, and we're just checking the SDK can parse this error response.
-      // For this test to be about the SDK *sending*, we'd need to modify makeRequest, which is not the goal here.
-      // Let's assume the backend replied with 401 and this body for some reason, and check SDK mapping.
-      .matchHeader('Authorization', `ApiKey ${validFullApiKey}`) // SDK sends correctly
-      .reply(401, backendErrorResponse); // But backend *replies* with this error (hypothetical)
+  // --- UpdateProfile ---
+  describe('updateProfile', () => {
+    it('should PUT profile updates to /api/v1/account/user/me', async () => {
+      const payload = { username: 'newname' };
+      const expected = {
+        message: 'Profile updated',
+        user: { userId: 'u1', username: 'newname', email: 'john@test.com', createdAt: '2026-01-01' },
+      };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    try {
-      await makeRequest(healthPath, 'GET', mockApiRequestContext(validFullApiKey));
-      throw new Error('Test should have thrown');
-    } catch (error: any) {
-      expect(error).toBeInstanceOf(AuthError);
-      expect(error.statusCode).toBe(401);
-      expect(error.message).toContain(
-        "Authorization header format must be 'Bearer {token}' or 'ApiKey {key}'"
-      );
-      expect(error.errorData).toEqual(backendErrorResponse);
-    }
-    expect(scope.isDone()).toBe(true);
+      const result = await client.auth.updateProfile(payload);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain('/api/v1/account/user/me');
+      expect(req.method).toBe('PUT');
+      expect(req.body).toEqual(payload);
+    });
+
+    it('should throw validation error if no fields provided', async () => {
+      await expect(client.auth.updateProfile({} as any))
+        .rejects.toThrow("No fields to update. Provide 'username' or 'email'.");
+    });
+
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Invalid email format' }));
+      await expect(client.auth.updateProfile({ email: 'invalid' })).rejects.toThrow(BadRequestError);
+    });
   });
 
-  // The "malformed token" error from your previous Jest output:
-  // That specific error `AuthError: malformed token` came when a JWT was involved and was "dummy-valid-jwt-token".
-  // Your Go middleware's JWT validation: `jwtUserID, authErr = nebulaErrors.ValidateJWT(...)`
-  // If `authErr` is `auth.ErrTokenMalformed`, the message is "token is malformed".
-  // Since the SDK (as per new requirement) is *only* sending `ApiKey` for these general calls,
-  // it will not send a JWT, so it cannot trigger the "malformed token" error related to JWTs
-  // from the `ValidateJWT` function.
-  // It *can* trigger the `ErrTokenMalformed` from the API key prefix check, as tested above.
+  // --- FindUser ---
+  describe('findUser', () => {
+    it('should GET /api/v1/user/:user_id', async () => {
+      const userInfo = { userId: 'u42', username: 'jane', email: 'jane@test.com', createdAt: '2026-02-01' };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
+
+      const result = await client.auth.findUser('u42');
+      expect(result).toEqual(userInfo);
+      expect(getLastRequest(mockFetch).url).toContain('/api/v1/user/u42');
+    });
+
+    it('should throw validation error if userId is empty', async () => {
+      await expect(client.auth.findUser('')).rejects.toThrow('User ID is required.');
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'User not found' }));
+      await expect(client.auth.findUser('nonexistent')).rejects.toThrow(NotFoundError);
+    });
+
+    it('should URL-encode userId', async () => {
+      const userInfo = { userId: 'u/1', username: 'test', email: 'test@t.com', createdAt: '2026-01-01' };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
+
+      const result = await client.auth.findUser('u/1');
+      expect(result).toEqual(userInfo);
+      expect(getLastRequest(mockFetch).url).toContain(encodeURIComponent('u/1'));
+    });
+  });
 });

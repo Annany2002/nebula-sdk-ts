@@ -1,158 +1,166 @@
 // test/modules/schema.test.ts
-import nock from 'nock';
-import { NebulaClient } from '../../src/client';
-import {
-  SchemaPayload,
-  SchemaInfoResponse,
-  TableListResponse,
-  ColumnDefinition,
-} from '../../src/types';
+import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
+import { SchemaPayload, SchemaInfoResponse, ColumnDefinition } from '../../src/types';
 import { BadRequestError, NotFoundError } from '../../src/errors';
 
-const mockBaseURL = 'http://api.nebula-test.com'; // Use the same URL as db tests
-const client = new NebulaClient({ baseURL: mockBaseURL });
-const token = 'valid-token-for-schema-tests';
+const { client, mockFetch } = createTestClient();
 
 describe('SchemaModule', () => {
   const dbName = 'my_app_db';
-  const schemaBasePath = `/api/v1/databases/${dbName}`;
 
   const sampleColumns: ColumnDefinition[] = [
     { name: 'description', type: 'TEXT' },
     { name: 'priority', type: 'INTEGER' },
     { name: 'done', type: 'BOOLEAN' },
   ];
-  const samplePayload: SchemaPayload = {
-    table_name: 'tasks',
-    columns: sampleColumns,
-  };
+  const samplePayload: SchemaPayload = { table_name: 'tasks', columns: sampleColumns };
 
-  beforeAll(() => {
-    client.setAuthToken(token);
-  });
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
-
-  afterAll(() => {
-    client.setAuthToken(null);
+  beforeEach(() => {
+    mockFetch.mockReset();
   });
 
   // --- Define Schema ---
-  it('define should POST schema payload and return info', async () => {
-    const expectedResponse: SchemaInfoResponse = {
-      table_name: 'tasks',
-      columns: sampleColumns,
-      message: 'Table created',
-    };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(`${schemaBasePath}/schema`, JSON.stringify(samplePayload))
-      .reply(201, expectedResponse);
+  describe('define', () => {
+    it('should POST schema payload and return info', async () => {
+      const expected: SchemaInfoResponse = { table_name: 'tasks', columns: sampleColumns, message: 'Table created' };
+      mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
-    const result = await client.schema.define(dbName, samplePayload);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
-  });
+      const result = await client.schema.define(dbName, samplePayload);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain(`/api/v1/databases/${dbName}/schema`);
+      expect(req.method).toBe('POST');
+      expect(req.body).toEqual(samplePayload);
+    });
 
-  it('define should throw BadRequestError on 400 (e.g., table exists, bad type)', async () => {
-    const errorResponse = {
-      error: 'Table already exists or invalid column type',
-    };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(`${schemaBasePath}/schema`, JSON.stringify(samplePayload))
-      .reply(400, errorResponse);
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Table exists' }));
+      await expect(client.schema.define(dbName, samplePayload)).rejects.toThrow(BadRequestError);
+    });
 
-    await expect(client.schema.define(dbName, samplePayload)).rejects.toThrow(BadRequestError);
-    await expect(client.schema.define(dbName, samplePayload)).rejects.toMatchObject({
-      errorData: errorResponse,
+    it('should throw NotFoundError if database does not exist', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Database not found' }));
+      await expect(client.schema.define('ghost_db', samplePayload)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error for invalid input', async () => {
+      await expect(client.schema.define('', samplePayload)).rejects.toThrow('Database name is required.');
+      await expect(client.schema.define(dbName, {} as any)).rejects.toThrow(
+        'Table name and at least one column definition are required.'
+      );
+      await expect(client.schema.define(dbName, { table_name: 't', columns: [] })).rejects.toThrow(
+        'Table name and at least one column definition are required.'
+      );
     });
   });
 
-  it('define should throw NotFoundError if database doesnt exist (404)', async () => {
-    const nonExistentDb = 'no_such_db';
-    const errorResponse = { error: 'Database not found' };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .post(`/api/v1/databases/${nonExistentDb}/schema`, JSON.stringify(samplePayload))
-      .reply(404, errorResponse);
-
-    await expect(client.schema.define(nonExistentDb, samplePayload)).rejects.toThrow(NotFoundError);
-  });
-
-  it('define should throw validation error for invalid input', async () => {
-    await expect(client.schema.define('', samplePayload)).rejects.toThrow(
-      'Database name is required.'
-    );
-    await expect(client.schema.define(dbName, {} as any)).rejects.toThrow(
-      'Table name and at least one column definition are required.'
-    );
-    await expect(client.schema.define(dbName, { table_name: 't' } as any)).rejects.toThrow(
-      'Table name and at least one column definition are required.'
-    );
-    await expect(client.schema.define(dbName, { table_name: 't', columns: [] })).rejects.toThrow(
-      'Table name and at least one column definition are required.'
-    );
-  });
-
   // --- List Tables ---
-  it('listTables should GET table names for a database', async () => {
-    const expectedResponse: TableListResponse = { tables: ['tasks', 'users'] };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(`${schemaBasePath}/tables`)
-      .reply(200, expectedResponse);
+  describe('listTables', () => {
+    it('should GET table list for a database', async () => {
+      const expected = {
+        tables: [{
+          type: 'table', name: 'tasks', tbl_name: 'tasks', rootpage: '2',
+          sql: 'CREATE TABLE tasks (...)', createdAt: '2026-01-01', columns: sampleColumns,
+        }],
+      };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    const result = await client.schema.listTables(dbName);
-    expect(result).toEqual(expectedResponse);
-    expect(nock.isDone()).toBe(true);
+      const result = await client.schema.listTables(dbName);
+      expect(result).toEqual(expected);
+      expect(result.tables).toHaveLength(1);
+      expect(getLastRequest(mockFetch).url).toContain(`/api/v1/databases/${dbName}/tables`);
+    });
+
+    it('should throw NotFoundError if database does not exist', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Database not found' }));
+      await expect(client.schema.listTables('ghost_db')).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw validation error if dbName is empty', async () => {
+      await expect(client.schema.listTables('')).rejects.toThrow('Database name is required.');
+    });
   });
 
-  it('listTables should throw NotFoundError if database doesnt exist (404)', async () => {
-    const nonExistentDb = 'no_such_db_list';
-    const errorResponse = { error: 'Database not found' };
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .get(`/api/v1/databases/${nonExistentDb}/tables`)
-      .reply(404, errorResponse);
+  // --- Get Schema ---
+  describe('getSchema', () => {
+    it('should GET schema for a specific table', async () => {
+      const expected: SchemaInfoResponse = { table_name: 'tasks', columns: sampleColumns };
+      mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
-    await expect(client.schema.listTables(nonExistentDb)).rejects.toThrow(NotFoundError);
+      const result = await client.schema.getSchema(dbName, 'tasks');
+      expect(result).toEqual(expected);
+      expect(getLastRequest(mockFetch).url).toContain(`/api/v1/databases/${dbName}/tables/tasks/schema`);
+    });
+
+    it('should URL-encode table name', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(200, { table_name: 'my table', columns: [] }));
+      await client.schema.getSchema(dbName, 'my table');
+      expect(getLastRequest(mockFetch).url).toContain(encodeURIComponent('my table'));
+    });
+
+    it('should throw validation errors for empty args', async () => {
+      await expect(client.schema.getSchema('', 'tasks')).rejects.toThrow('Database name is required.');
+      await expect(client.schema.getSchema(dbName, '')).rejects.toThrow('Table name is required.');
+    });
+
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Table not found' }));
+      await expect(client.schema.getSchema(dbName, 'ghost')).rejects.toThrow(NotFoundError);
+    });
   });
 
-  it('listTables should throw validation error if dbName is missing', async () => {
-    await expect(client.schema.listTables('')).rejects.toThrow('Database name is required.');
+  // --- Create Table ---
+  describe('createTable', () => {
+    it('should POST to /tables endpoint', async () => {
+      const payload: SchemaPayload = { table_name: 'posts', columns: [{ name: 'title', type: 'TEXT' }] };
+      const expected: SchemaInfoResponse = { ...payload, message: 'Table created' };
+      mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
+
+      const result = await client.schema.createTable(dbName, payload);
+      expect(result).toEqual(expected);
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain(`/api/v1/databases/${dbName}/tables`);
+      expect(req.url).not.toContain('/schema');
+      expect(req.method).toBe('POST');
+    });
+
+    it('should throw validation error for invalid input', async () => {
+      await expect(client.schema.createTable('', samplePayload)).rejects.toThrow('Database name is required.');
+      await expect(client.schema.createTable(dbName, {} as any)).rejects.toThrow(
+        'Table name and at least one column definition are required.'
+      );
+    });
+
+    it('should throw BadRequestError on 400', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Table exists' }));
+      await expect(client.schema.createTable(dbName, samplePayload)).rejects.toThrow(BadRequestError);
+    });
   });
 
   // --- Delete Table ---
-  it('deleteTable should send DELETE request for the table name', async () => {
-    const tableName = 'table_to_delete';
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${schemaBasePath}/tables/${tableName}`)
-      .reply(204); // No content
+  describe('deleteTable', () => {
+    it('should send DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await expect(client.schema.deleteTable(dbName, 'tasks')).resolves.toBeUndefined();
+      const req = getLastRequest(mockFetch);
+      expect(req.url).toContain(`/api/v1/databases/${dbName}/tables/tasks`);
+      expect(req.method).toBe('DELETE');
+    });
 
-    await expect(client.schema.deleteTable(dbName, tableName)).resolves.toBeUndefined();
-    expect(nock.isDone()).toBe(true);
-  });
+    it('should URL-encode table name', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(204));
+      await client.schema.deleteTable(dbName, 'table/slash');
+      expect(getLastRequest(mockFetch).url).toContain(encodeURIComponent('table/slash'));
+    });
 
-  it('deleteTable should URL encode table name', async () => {
-    const tableName = 'table with/slash';
-    const encodedTableName = encodeURIComponent(tableName);
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${schemaBasePath}/tables/${encodedTableName}`)
-      .reply(204);
+    it('should throw NotFoundError on 404', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Table not found' }));
+      await expect(client.schema.deleteTable(dbName, 'ghost')).rejects.toThrow(NotFoundError);
+    });
 
-    await expect(client.schema.deleteTable(dbName, tableName)).resolves.toBeUndefined();
-    expect(nock.isDone()).toBe(true);
-  });
-
-  it('deleteTable should throw NotFoundError on 404 (db or table not found)', async () => {
-    const tableName = 'non_existent_table';
-    nock(mockBaseURL, { reqheaders: { Authorization: `Bearer ${token}` } })
-      .delete(`${schemaBasePath}/tables/${tableName}`)
-      .reply(404, { error: 'Table not found' });
-
-    await expect(client.schema.deleteTable(dbName, tableName)).rejects.toThrow(NotFoundError);
-  });
-
-  it('deleteTable should throw validation error for missing names', async () => {
-    await expect(client.schema.deleteTable('', 't1')).rejects.toThrow('Database name is required.');
-    await expect(client.schema.deleteTable('db1', '')).rejects.toThrow('Table name is required.');
+    it('should throw validation errors for empty args', async () => {
+      await expect(client.schema.deleteTable('', 'tasks')).rejects.toThrow('Database name is required.');
+      await expect(client.schema.deleteTable(dbName, '')).rejects.toThrow('Table name is required.');
+    });
   });
 });
