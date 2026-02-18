@@ -45,13 +45,12 @@ export async function makeRequest<T>(
     Accept: 'application/json',
     'User-Agent': USER_AGENT,
     Authorization: `ApiKey ${apiKey}`,
+    'X-Nebula-Secret': 'e7e2afb1cc15afaf92defcfd174f38889621e3f52b22fdea5eedbafbb15c4460e3b785  afb3e477c902f266691f41591be27ccc0fc31f73f27bbc9f61b97e9ce8de9ea19ea58867b71656dcd0dca7fe17b19e82d0c2720645566fcc6ba8de7dda6b054e8ed237d781baa27c02de6e8ea505f4874bf1b35ae293fd514e8036d9430a1ad7a1e6da64d2a3c5980cffe345e82c65d05a2593f15b605f2aa7ac8c3545',
   };
 
   if (body) {
     headers['Content-Type'] = 'application/json';
   }
-
-  // Add Api
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
