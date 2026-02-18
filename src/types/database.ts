@@ -15,3 +15,20 @@ export type DbListRType = {
 export interface DbListResponse {
   databases: DbListRType[];
 }
+
+/** Payload for creating a new database */
+export interface DbCreatePayload {
+  db_name: string;
+}
+
+/** Response structure after creating a database */
+export interface DbInfoResponse {
+  db_name: string;
+  message: string;
+}
+
+/** Response structure for API key operations */
+export interface ApiKeyResponse {
+  api_key: string;
+  message?: string;
+}
