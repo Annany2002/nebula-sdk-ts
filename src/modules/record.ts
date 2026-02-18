@@ -1,6 +1,6 @@
 // src/modules/record.ts
 import { makeRequest } from '../http';
-import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams } from '../types';
+import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams, ListOptions } from '../types';
 import { ModuleContext } from './_common';
 
 export class RecordModule {
@@ -68,20 +68,29 @@ export class RecordModule {
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table to list records from.
    * @param filter - Optional object for basic equality filtering (e.g., { column: value }).
+   * @param options - Optional pagination, sorting, and field selection options.
    * @returns An array of record objects matching the criteria.
    * @throws {NotFoundError} If the database or table name does not exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {BadRequestError} If filter parameters are invalid for the schema.
    * @throws {ApiError} For other API-related errors.
    */
-  async list(dbName: string, tableName: string, filter?: FilterParams): Promise<RecordResponse[]> {
+  async list(dbName: string, tableName: string, filter?: FilterParams, options?: ListOptions): Promise<RecordResponse[]> {
     const path = this.buildRecordPath(dbName, tableName);
-    // Filter object directly used as queryParams by makeRequest
+    // Merge filter and options into a single query params object
+    const queryParams: Record<string, string | number | boolean> = { ...filter };
+    if (options) {
+      if (options.limit !== undefined) queryParams.limit = options.limit;
+      if (options.offset !== undefined) queryParams.offset = options.offset;
+      if (options.sort) queryParams.sort = options.sort;
+      if (options.order) queryParams.order = options.order;
+      if (options.fields) queryParams.fields = options.fields;
+    }
     return makeRequest<RecordResponse[]>(
       path,
       'GET',
       this.getRequestContext(),
-      filter // Pass filter object as query parameters
+      Object.keys(queryParams).length > 0 ? queryParams : undefined
     );
   }
 
