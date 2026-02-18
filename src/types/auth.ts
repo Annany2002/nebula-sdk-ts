@@ -35,5 +35,20 @@ export interface SignupResponse {
 
 /** Placeholder for user information - adjust if /api/v1/me returns more */
 export interface UserInfo {
-  userId: string; // Assuming /me endpoint returns at least this
+  userId: string;
+  username: string;
+  email: string;
+  createdAt: string;
+}
+
+/** Payload for updating user profile */
+export interface UpdateProfilePayload {
+  username?: string;
+  email?: string;
+}
+
+/** Response from a successful profile update */
+export interface UserProfileResponse {
+  message: string;
+  user: UserInfo;
 }
