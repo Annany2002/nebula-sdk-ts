@@ -1,6 +1,6 @@
 {
   "name": "nebula-sdk-ts",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "TypeScript SDK for the Nebula",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
