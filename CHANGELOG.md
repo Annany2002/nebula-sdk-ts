@@ -13,6 +13,7 @@
 
 ### Added
 
+- Add pull request checks for source/test types, lint, formatting, Node.js compatibility, package consumers, and isolated backend integration.
 - Create clients without an API key for signup, login, and JWT sessions.
 - Validate HTTP(S) backend URLs, credentials, and supported request timeout values.
 - Export `ConflictError` for the backend's duplicate-resource and constraint responses.

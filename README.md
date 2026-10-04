@@ -197,20 +197,32 @@ Exported error classes include `NebulaError`, `ApiError`, `AuthError`, `BadReque
 ```bash
 git clone https://github.com/Annany2002/nebula-sdk-ts.git
 cd nebula-sdk-ts
-npm install
+npm ci
 ```
 
 | Command                | Purpose                                                             |
 | ---------------------- | ------------------------------------------------------------------- |
+| `npm run typecheck`    | Check source and test types without emitting files                  |
+| `npm run format:check` | Check repository formatting without changing files                  |
 | `npm run test:backend` | Run against an isolated local Go backend and temporary SQLite files |
 | `npm test`             | Run Jest tests                                                      |
+| `npm run test:ci`      | Run Jest tests serially with coverage                               |
+| `npm run test:package` | Build, pack, install, and validate the published package surface    |
 | `npm run test:watch`   | Watch tests                                                         |
 | `npm run coverage`     | Generate coverage                                                   |
 | `npm run lint`         | Run ESLint                                                          |
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
-| `npm run format`       | Format source and tests                                             |
+| `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
 `npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication integration suite, and removes its data afterward. The integration suite is skipped during ordinary `npm test` runs.
+
+### Pull request checks
+
+CI runs only when a pull request to `main` is opened. Updating or reopening an existing pull request does not trigger another run. It checks types and formatting, runs ESLint, tests Node.js 18/20/22/24 compatibility, validates the built npm package with JavaScript and TypeScript consumers, and runs integration tests against a pinned backend revision. The backend revision is recorded in `.github/workflows/ci.yml` and should be updated with deliberate contract changes.
+
+ESLint currently permits the six existing `no-explicit-any` warnings; additional warnings fail the check. Formatting ignores generated files and the npm lockfile. Integration tests use temporary data, require no production credentials, and do not contact the deployed server.
+
+Configure the repository ruleset to require **PR checks** before merging. This aggregate check succeeds only when every CI group passes. Adding the workflow alone does not enforce merge protection.
 
 ## License
 
