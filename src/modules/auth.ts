@@ -1,5 +1,5 @@
 // src/modules/auth.ts
-import { makeRequest } from '../http';
+import { makeRequest, RequestAuthentication, RequestContext } from '../http';
 import {
   SignUpCredentials,
   LoginResponse,
@@ -18,9 +18,10 @@ export class AuthModule {
     this.context = context;
   }
 
-  private getRequestContext() {
+  private getRequestContext(authentication: RequestAuthentication = 'auto'): RequestContext {
     return {
       ...this.context.config,
+      authentication,
       authToken: this.context.getAuthToken(), // Get current token for the request
     };
   }
@@ -35,7 +36,7 @@ export class AuthModule {
    */
   async signup(credentials: SignUpCredentials): Promise<SignupResponse> {
     // Note: No auth token needed for signup
-    const requestContext = { ...this.context.config, authToken: null };
+    const requestContext = this.getRequestContext('none');
     return makeRequest<SignupResponse>(
       'auth/signup',
       'POST',
@@ -58,13 +59,13 @@ export class AuthModule {
    */
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     // Note: No auth token needed for login
-    const requestContext = { ...this.context.config, authToken: null };
+    const requestContext = this.getRequestContext('none');
     return makeRequest<LoginResponse>('auth/login', 'POST', requestContext, undefined, credentials);
   }
 
   /**
    * Health route to check health of the protected routes
-   * Requires an api key
+   * Accepts a JWT session or database API key
    * @returns A void Promise
    */
 
@@ -82,7 +83,7 @@ export class AuthModule {
    */
   async getMe(): Promise<UserInfo> {
     // This request requires authentication
-    return makeRequest<UserInfo>('api/v1/account/user/me', 'GET', this.getRequestContext());
+    return makeRequest<UserInfo>('api/v1/account/user/me', 'GET', this.getRequestContext('bearer'));
   }
 
   /**
@@ -101,7 +102,7 @@ export class AuthModule {
     return makeRequest<UserProfileResponse>(
       'api/v1/account/user/me',
       'PUT',
-      this.getRequestContext(),
+      this.getRequestContext('bearer'),
       undefined,
       payload
     );
@@ -122,7 +123,7 @@ export class AuthModule {
     return makeRequest<UserInfo>(
       `api/v1/user/${encodeURIComponent(userId)}`,
       'GET',
-      this.getRequestContext()
+      this.getRequestContext('bearer')
     );
   }
 }

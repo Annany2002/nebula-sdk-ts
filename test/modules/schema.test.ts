@@ -22,7 +22,11 @@ describe('SchemaModule', () => {
   // --- Define Schema ---
   describe('define', () => {
     it('should POST schema payload and return info', async () => {
-      const expected: SchemaInfoResponse = { table_name: 'tasks', columns: sampleColumns, message: 'Table created' };
+      const expected: SchemaInfoResponse = {
+        table_name: 'tasks',
+        columns: sampleColumns,
+        message: 'Table created',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
       const result = await client.schema.define(dbName, samplePayload);
@@ -44,7 +48,9 @@ describe('SchemaModule', () => {
     });
 
     it('should throw validation error for invalid input', async () => {
-      await expect(client.schema.define('', samplePayload)).rejects.toThrow('Database name is required.');
+      await expect(client.schema.define('', samplePayload)).rejects.toThrow(
+        'Database name is required.'
+      );
       await expect(client.schema.define(dbName, {} as any)).rejects.toThrow(
         'Table name and at least one column definition are required.'
       );
@@ -58,10 +64,17 @@ describe('SchemaModule', () => {
   describe('listTables', () => {
     it('should GET table list for a database', async () => {
       const expected = {
-        tables: [{
-          type: 'table', name: 'tasks', tbl_name: 'tasks', rootpage: '2',
-          sql: 'CREATE TABLE tasks (...)', createdAt: '2026-01-01', columns: sampleColumns,
-        }],
+        tables: [
+          {
+            type: 'table',
+            name: 'tasks',
+            tbl_name: 'tasks',
+            rootpage: '2',
+            sql: 'CREATE TABLE tasks (...)',
+            createdAt: '2026-01-01',
+            columns: sampleColumns,
+          },
+        ],
       };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
@@ -89,7 +102,9 @@ describe('SchemaModule', () => {
 
       const result = await client.schema.getSchema(dbName, 'tasks');
       expect(result).toEqual(expected);
-      expect(getLastRequest(mockFetch).url).toContain(`/api/v1/databases/${dbName}/tables/tasks/schema`);
+      expect(getLastRequest(mockFetch).url).toContain(
+        `/api/v1/databases/${dbName}/tables/tasks/schema`
+      );
     });
 
     it('should URL-encode table name', async () => {
@@ -99,7 +114,9 @@ describe('SchemaModule', () => {
     });
 
     it('should throw validation errors for empty args', async () => {
-      await expect(client.schema.getSchema('', 'tasks')).rejects.toThrow('Database name is required.');
+      await expect(client.schema.getSchema('', 'tasks')).rejects.toThrow(
+        'Database name is required.'
+      );
       await expect(client.schema.getSchema(dbName, '')).rejects.toThrow('Table name is required.');
     });
 
@@ -112,7 +129,10 @@ describe('SchemaModule', () => {
   // --- Create Table ---
   describe('createTable', () => {
     it('should POST to /tables endpoint', async () => {
-      const payload: SchemaPayload = { table_name: 'posts', columns: [{ name: 'title', type: 'TEXT' }] };
+      const payload: SchemaPayload = {
+        table_name: 'posts',
+        columns: [{ name: 'title', type: 'TEXT' }],
+      };
       const expected: SchemaInfoResponse = { ...payload, message: 'Table created' };
       mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
@@ -125,7 +145,9 @@ describe('SchemaModule', () => {
     });
 
     it('should throw validation error for invalid input', async () => {
-      await expect(client.schema.createTable('', samplePayload)).rejects.toThrow('Database name is required.');
+      await expect(client.schema.createTable('', samplePayload)).rejects.toThrow(
+        'Database name is required.'
+      );
       await expect(client.schema.createTable(dbName, {} as any)).rejects.toThrow(
         'Table name and at least one column definition are required.'
       );
@@ -133,7 +155,9 @@ describe('SchemaModule', () => {
 
     it('should throw BadRequestError on 400', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Table exists' }));
-      await expect(client.schema.createTable(dbName, samplePayload)).rejects.toThrow(BadRequestError);
+      await expect(client.schema.createTable(dbName, samplePayload)).rejects.toThrow(
+        BadRequestError
+      );
     });
   });
 
@@ -159,8 +183,12 @@ describe('SchemaModule', () => {
     });
 
     it('should throw validation errors for empty args', async () => {
-      await expect(client.schema.deleteTable('', 'tasks')).rejects.toThrow('Database name is required.');
-      await expect(client.schema.deleteTable(dbName, '')).rejects.toThrow('Table name is required.');
+      await expect(client.schema.deleteTable('', 'tasks')).rejects.toThrow(
+        'Database name is required.'
+      );
+      await expect(client.schema.deleteTable(dbName, '')).rejects.toThrow(
+        'Table name is required.'
+      );
     });
   });
 });

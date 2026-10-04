@@ -8,6 +8,7 @@ const { client, mockFetch } = createTestClient();
 describe('DatabaseModule', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    client.setAuthToken('test.jwt.token');
   });
 
   // --- Create ---
@@ -36,8 +37,12 @@ describe('DatabaseModule', () => {
     });
 
     it('should throw validation error if db_name is missing', async () => {
-      await expect(client.databases.create({} as any)).rejects.toThrow('Database name (db_name) is required.');
-      await expect(client.databases.create({ db_name: '' })).rejects.toThrow('Database name (db_name) is required.');
+      await expect(client.databases.create({} as any)).rejects.toThrow(
+        'Database name (db_name) is required.'
+      );
+      await expect(client.databases.create({ db_name: '' })).rejects.toThrow(
+        'Database name (db_name) is required.'
+      );
     });
   });
 
@@ -45,10 +50,17 @@ describe('DatabaseModule', () => {
   describe('list', () => {
     it('should GET database list', async () => {
       const expected = {
-        databases: [{
-          id: 1, userId: 'u1', dbName: 'db1', filePath: '/data/db1',
-          createdAt: '2026-01-01', tableCount: 2, apiKey: 'neb_key1',
-        }],
+        databases: [
+          {
+            id: 1,
+            userId: 'u1',
+            dbName: 'db1',
+            filePath: '/data/db1',
+            createdAt: '2026-01-01',
+            tableCount: 2,
+            apiKey: 'neb_key1',
+          },
+        ],
       };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
@@ -86,7 +98,9 @@ describe('DatabaseModule', () => {
     });
 
     it('should throw validation error if dbName is empty', async () => {
-      await expect(client.databases.delete('')).rejects.toThrow('Database name is required for deletion.');
+      await expect(client.databases.delete('')).rejects.toThrow(
+        'Database name is required for deletion.'
+      );
     });
   });
 

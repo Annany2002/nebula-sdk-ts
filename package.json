@@ -17,7 +17,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "coverage": "jest --coverage",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test:backend": "node scripts/test-backend.mjs"
   },
   "repository": {
     "type": "git",

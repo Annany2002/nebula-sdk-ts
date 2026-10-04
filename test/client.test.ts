@@ -1,6 +1,7 @@
 // test/client.test.ts
 import { NebulaClient } from '../src/client';
 import { NebulaError } from '../src/errors';
+import { NebulaClientConfig } from '../src/types';
 
 const validConfig = {
   baseURL: 'http://mock-nebula.com',
@@ -18,17 +19,22 @@ describe('NebulaClient Initialization', () => {
   });
 
   it('should throw NebulaError if baseURL is missing', () => {
-    expect(() => new NebulaClient(undefined as any)).toThrow(NebulaError);
-    expect(() => new NebulaClient({} as any)).toThrow(NebulaError);
-    expect(() => new NebulaClient({ apiKey: 'neb_key' } as any)).toThrow(NebulaError);
+    expect(() => new NebulaClient(undefined as unknown as NebulaClientConfig)).toThrow(NebulaError);
+    expect(() => new NebulaClient({} as NebulaClientConfig)).toThrow(NebulaError);
+    expect(() => new NebulaClient({ apiKey: 'neb_key' } as NebulaClientConfig)).toThrow(
+      NebulaError
+    );
   });
 
-  it('should throw NebulaError if apiKey is missing', () => {
-    expect(() => new NebulaClient({ baseURL: 'http://test.com' } as any)).toThrow(NebulaError);
+  it('allows initialization without an API key for signup and JWT sessions', () => {
+    const client = new NebulaClient({ baseURL: 'http://test.com' });
+    expect(client.getConfig().apiKey).toBeUndefined();
   });
 
   it('should throw NebulaError if baseURL is invalid', () => {
-    expect(() => new NebulaClient({ ...validConfig, baseURL: 'invalid' })).toThrow(/Invalid baseURL/);
+    expect(() => new NebulaClient({ ...validConfig, baseURL: 'invalid' })).toThrow(
+      /Invalid baseURL/
+    );
   });
 
   it('should allow setting and getting auth token', () => {
@@ -57,4 +63,27 @@ describe('NebulaClient Initialization', () => {
     const client = new NebulaClient({ ...validConfig, timeout: 5000 });
     expect(client.getConfig().timeout).toBe(5000);
   });
+});
+
+const invalidURLs = [
+  'ftp://example.com',
+  'file:///private/data',
+  'https://user:password@example.com',
+  'https://example.com?query=1',
+  'https://example.com#fragment',
+];
+test.each(invalidURLs)('rejects unsafe or ambiguous baseURL %s', (baseURL) => {
+  expect(() => new NebulaClient({ baseURL })).toThrow(NebulaError);
+});
+test.each([0, -1, NaN, Infinity, 1.5, 2_147_483_648])('rejects invalid timeout %s', (timeout) => {
+  expect(() => new NebulaClient({ ...validConfig, timeout })).toThrow(/timeout/);
+});
+test.each(['', 'key with spaces', 'key\r\ninjected'])('rejects invalid API key %j', (apiKey) => {
+  expect(() => new NebulaClient({ ...validConfig, apiKey })).toThrow(/apiKey/);
+});
+test.each(['', 'token with spaces', 'token\nheader'])('rejects invalid JWT %j', (token) => {
+  const client = new NebulaClient(validConfig);
+  client.setAuthToken('valid.jwt');
+  expect(() => client.setAuthToken(token)).toThrow(/authToken/);
+  expect(client.getAuthToken()).toBe('valid.jwt');
 });
