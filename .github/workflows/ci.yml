@@ -27,27 +27,22 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm run ${{ matrix.check }}
 
   tests:
-    name: Unit tests (Node ${{ matrix.node }})
+    name: Unit tests (Node 24)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        # Node 18 and 20 retain coverage for the existing engines >=18 promise.
-        node: ['18', '20', '22', '24']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm run test:ci
@@ -62,7 +57,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - run: npm run test:package
@@ -87,7 +82,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: nebula-sdk-ts/package-lock.json
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6

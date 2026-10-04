@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Raise the minimum supported Node.js version from 18 to 24 and run CI only on Node.js 24 LTS.
+
 ### Fixed
 
 - Send the current JWT for account operations and prefer it over an API key for data operations.

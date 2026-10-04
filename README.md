@@ -10,7 +10,7 @@ The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides th
 npm install nebula-sdk-ts
 ```
 
-Requires Node.js 18 or later, or an environment with Fetch and AbortController. TypeScript declarations are included.
+Requires Node.js 24 or later, or an environment with Fetch and AbortController. TypeScript declarations are included.
 
 ## Quick start
 
@@ -218,7 +218,7 @@ npm ci
 
 ### Pull request checks
 
-CI runs only when a pull request to `main` is opened. Updating or reopening an existing pull request does not trigger another run. It checks types and formatting, runs ESLint, tests Node.js 18/20/22/24 compatibility, validates the built npm package with JavaScript and TypeScript consumers, and runs integration tests against a pinned backend revision. The backend revision is recorded in `.github/workflows/ci.yml` and should be updated with deliberate contract changes.
+CI runs only when a pull request to `main` is opened. Updating or reopening an existing pull request does not trigger another run. All Node.js checks use Node.js 24 LTS. CI checks types and formatting, runs ESLint and the unit test suite once, validates the built npm package with JavaScript and TypeScript consumers, and runs integration tests against a pinned backend revision. The backend revision is recorded in `.github/workflows/ci.yml` and should be updated with deliberate contract changes.
 
 ESLint currently permits the six existing `no-explicit-any` warnings; additional warnings fail the check. Formatting ignores generated files and the npm lockfile. Integration tests use temporary data, require no production credentials, and do not contact the deployed server.
 
