@@ -12,13 +12,17 @@
   "scripts": {
     "build": "tsc",
     "build_and_pack": "rm -rf dist && npm run build && npm pack",
-    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
-    "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
+    "typecheck": "tsc --project tsconfig.check.json --noEmit",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts' 'scripts/**/*.mjs' --max-warnings 6",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "jest",
+    "test:ci": "jest --runInBand",
     "test:watch": "jest --watch",
     "coverage": "jest --coverage",
     "prepublishOnly": "npm run build",
-    "test:backend": "node scripts/test-backend.mjs"
+    "test:backend": "node scripts/test-backend.mjs",
+    "test:package": "npm run build && node scripts/test-package.mjs"
   },
   "repository": {
     "type": "git",
@@ -52,6 +56,6 @@
     "typescript": "^5.4.5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.0.0"
   }
 }
