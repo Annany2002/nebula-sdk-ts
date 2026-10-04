@@ -1,4 +1,3 @@
-// src/http.ts
 import { NebulaClientConfig, NebulaErrorResponse } from './types';
 import {
   ApiError,
@@ -8,140 +7,123 @@ import {
   ForbiddenError,
   NotFoundError,
   BadRequestError,
+  ConflictError,
   RateLimitError,
   ServerError,
 } from './errors';
-import { DEFAULT_TIMEOUT, USER_AGENT } from './config';
+import { DEFAULT_TIMEOUT } from './config';
 
-/** Internal type for passing context to makeRequest */
-interface RequestContext extends NebulaClientConfig {}
+/** @internal Authentication policy for an individual endpoint. */
+export type RequestAuthentication = 'auto' | 'bearer' | 'none';
+
+/** @internal Request configuration with the current session credentials. */
+export interface RequestContext extends NebulaClientConfig {
+  authToken?: string | null;
+  authentication?: RequestAuthentication;
+}
+
+function authorization(context: RequestContext): string | undefined {
+  if (context.authentication === 'none') return undefined;
+  if (context.authToken) return `Bearer ${context.authToken}`;
+  if (context.authentication === 'bearer') {
+    throw new AuthError('This operation requires a JWT. Call setAuthToken() after logging in.');
+  }
+  if (context.apiKey) return `ApiKey ${context.apiKey}`;
+  throw new AuthError('Authentication required. Set a JWT token or configure a database API key.');
+}
+
+function errorData(value: unknown, status: number): NebulaErrorResponse {
+  if (value !== null && typeof value === 'object') {
+    const payload = value as Record<string, unknown>;
+    if (typeof payload.error === 'string') return payload as unknown as NebulaErrorResponse;
+    if (typeof payload.message === 'string') return { error: payload.message };
+  }
+  return { error: `HTTP error! Status: ${status}` };
+}
+
+function throwApiError(status: number, data: NebulaErrorResponse): never {
+  switch (status) {
+    case 400:
+      throw new BadRequestError(data.error, data);
+    case 401:
+      throw new AuthError(data.error, data);
+    case 403:
+      throw new ForbiddenError(data.error, data);
+    case 404:
+      throw new NotFoundError(data.error, data);
+    case 409:
+      throw new ConflictError(data.error, data);
+    case 429:
+      throw new RateLimitError(data.error, data);
+    default:
+      if (status >= 500) throw new ServerError(data.error, status, data);
+      throw new ApiError(data.error, status, data);
+  }
+}
+
+async function readResponse(response: Response): Promise<unknown> {
+  if (response.status === 204) return null;
+  const text = await response.text();
+  if (!text) return null;
+  const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+  if (contentType !== 'application/json' && !contentType?.endsWith('+json')) {
+    if (!response.ok) return null;
+    throw new NetworkError('Expected a JSON response from the API.');
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (cause) {
+    if (!response.ok) return null;
+    throw new NetworkError('Received invalid JSON from the API.', cause as Error);
+  }
+}
 
 /**
- * Internal function to make HTTP requests to the Nebula API.
- * Handles adding auth token and mapping status codes to specific errors.
+ * Sends one request without automatic retries. The deadline includes reading the response body.
  * @internal
  */
 export async function makeRequest<T>(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
-  context: RequestContext, // Use the combined context type
+  context: RequestContext,
   queryParams?: Record<string, string | number | boolean>,
-  body?: any
+  body?: unknown
 ): Promise<T> {
-  const { baseURL, fetch: customFetch, timeout, apiKey } = context; // Destructure authToken
-  const fetchFn = customFetch || fetch;
-  const requestTimeout = timeout ?? DEFAULT_TIMEOUT;
-
-  const url = new URL(`${baseURL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`);
+  const fetchFn = context.fetch ?? globalThis.fetch;
+  const requestTimeout = context.timeout ?? DEFAULT_TIMEOUT;
+  const url = new URL(`${context.baseURL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`);
   if (queryParams) {
     Object.entries(queryParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value));
-      }
+      if (value !== undefined && value !== null) url.searchParams.append(key, String(value));
     });
   }
 
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'User-Agent': USER_AGENT,
-    Authorization: `ApiKey ${apiKey}`,
-    'X-Nebula-Secret': 'e7e2afb1cc15afaf92defcfd174f38889621e3f52b22fdea5eedbafbb15c4460e3b785  afb3e477c902f266691f41591be27ccc0fc31f73f27bbc9f61b97e9ce8de9ea19ea58867b71656dcd0dca7fe17b19e82d0c2720645566fcc6ba8de7dda6b054e8ed237d781baa27c02de6e8ea505f4874bf1b35ae293fd514e8036d9430a1ad7a1e6da64d2a3c5980cffe345e82c65d05a2593f15b605f2aa7ac8c3545',
-  };
-
-  if (body) {
-    headers['Content-Type'] = 'application/json';
-  }
-
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const credential = authorization(context);
+  if (credential) headers.Authorization = credential;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const serializedBody = body === undefined ? undefined : JSON.stringify(body);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
 
-  let response: Response;
   try {
-    response = await fetchFn(url.toString(), {
-      method: method,
-      headers: headers,
-      body: body ? JSON.stringify(body) : undefined,
+    const response = await fetchFn(url.toString(), {
+      method,
+      headers,
+      body: serializedBody,
       signal: controller.signal,
     });
-  } catch (error: any) {
-    clearTimeout(timeoutId);
-    if (error.name === 'AbortError') {
+    const result = await readResponse(response);
+    if (!response.ok) throwApiError(response.status, errorData(result, response.status));
+    return result as T;
+  } catch (cause) {
+    if (controller.signal.aborted) {
       throw new TimeoutError(`Request timed out after ${requestTimeout}ms`);
     }
+    if (cause instanceof ApiError || cause instanceof NetworkError) throw cause;
+    const error = cause instanceof Error ? cause : new Error(String(cause));
     throw new NetworkError(`Failed to fetch: ${error.message}`, error);
   } finally {
     clearTimeout(timeoutId);
   }
-
-  if (response.status === 204) {
-    return null as T;
-  }
-
-  let responseBody: any;
-  const contentType = response.headers.get('content-type');
-  const isJson = contentType && contentType.includes('application/json');
-
-  try {
-    const text = await response.text();
-    if (text && isJson) {
-      responseBody = JSON.parse(text);
-    } else if (text) {
-      // Handle non-JSON response text if needed, maybe just use it as message?
-      // If response.ok is true but non-JSON, could be problematic.
-      responseBody = { message: text }; // Treat as simple message object
-    } else {
-      responseBody = null;
-    }
-  } catch (e) {
-    if (response.ok) {
-      throw new NetworkError(
-        'Received non-JSON response from API when JSON was expected.',
-        e as Error
-      );
-    }
-    // Use a generic error structure if parsing fails on an error response
-    responseBody = {
-      error: `Received status ${response.status} with invalid JSON body.`,
-    };
-  }
-
-  if (!response.ok) {
-    // Use parsed body if available and looks like an error object, otherwise use default messages
-    const errorData =
-      responseBody && typeof responseBody === 'object' && 'error' in responseBody
-        ? (responseBody as NebulaErrorResponse)
-        : {
-            error: responseBody?.message || `HTTP error! Status: ${response.status}`,
-          };
-    const errorMessage = errorData.error;
-
-    // Throw specific errors based on status code
-    switch (response.status) {
-      case 400:
-        throw new BadRequestError(errorMessage, errorData);
-      case 401:
-        throw new AuthError(errorMessage, errorData);
-      case 403:
-        throw new ForbiddenError(errorMessage, errorData);
-      case 404:
-        throw new NotFoundError(errorMessage, errorData);
-      case 429:
-        throw new RateLimitError(errorMessage, errorData);
-      default:
-        if (response.status >= 500) {
-          throw new ServerError(errorMessage, response.status, errorData);
-        }
-        // Catch-all for other 4xx errors or unexpected statuses
-        throw new ApiError(`Unhandled API Error: ${errorMessage}`, response.status, errorData);
-    }
-  }
-
-  // Check if responseBody is null and T is not expecting null/void
-  // This is tricky, might need adjustment based on specific API calls expecting non-JSON success
-  if (responseBody === null && response.status !== 204) {
-    // Consider if specific endpoints might return 200 OK with empty body
-    // For now, assume T allows null/void or this case is handled by specific module logic
-  }
-
-  return responseBody as T;
 }

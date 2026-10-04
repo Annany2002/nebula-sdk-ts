@@ -1,5 +1,5 @@
 // src/modules/database.ts
-import { makeRequest } from '../http';
+import { makeRequest, RequestContext } from '../http';
 import { DbListResponse, DbCreatePayload, DbInfoResponse, ApiKeyResponse } from '../types';
 import { ModuleContext } from './_common';
 
@@ -10,9 +10,10 @@ export class DatabaseModule {
     this.context = context;
   }
 
-  private getRequestContext() {
+  private getRequestContext(): RequestContext {
     return {
       ...this.context.config,
+      authentication: 'bearer',
       authToken: this.context.getAuthToken(), // Get current token for the request
     };
   }
@@ -22,7 +23,8 @@ export class DatabaseModule {
    * Requires a valid token to be set on the client.
    * @param payload - Object containing the database name.
    * @returns Information about the created database.
-   * @throws {BadRequestError} If the database name already exists or is invalid.
+   * @throws {BadRequestError} If the database name is invalid.
+   * @throws {ConflictError} If the database name already exists.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */

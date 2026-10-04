@@ -7,6 +7,7 @@ const { client, mockFetch } = createTestClient();
 describe('AuthModule', () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    client.setAuthToken('test.jwt.token');
   });
 
   // --- Signup ---
@@ -26,8 +27,9 @@ describe('AuthModule', () => {
 
     it('should throw BadRequestError on 400', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Invalid email' }));
-      await expect(client.auth.signup({ username: 'x', email: 'bad', password: '1' }))
-        .rejects.toThrow(BadRequestError);
+      await expect(
+        client.auth.signup({ username: 'x', email: 'bad', password: '1' })
+      ).rejects.toThrow(BadRequestError);
     });
   });
 
@@ -48,14 +50,16 @@ describe('AuthModule', () => {
 
     it('should throw AuthError on 401', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(401, { error: 'Invalid credentials' }));
-      await expect(client.auth.login({ email: 'user@test.com', password: 'wrong' }))
-        .rejects.toThrow(AuthError);
+      await expect(
+        client.auth.login({ email: 'user@test.com', password: 'wrong' })
+      ).rejects.toThrow(AuthError);
     });
   });
 
   // --- Health Check ---
   describe('healthP', () => {
     it('should GET /api/v1/health with ApiKey header', async () => {
+      client.setAuthToken(null);
       mockFetch.mockResolvedValueOnce(mockResponse(200, { status: 'ok' }));
 
       const result = await client.auth.healthP();
@@ -74,7 +78,12 @@ describe('AuthModule', () => {
   // --- GetMe ---
   describe('getMe', () => {
     it('should GET /api/v1/account/user/me', async () => {
-      const userInfo = { userId: 'u1', username: 'john', email: 'john@test.com', createdAt: '2026-01-01' };
+      const userInfo = {
+        userId: 'u1',
+        username: 'john',
+        email: 'john@test.com',
+        createdAt: '2026-01-01',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
 
       const result = await client.auth.getMe();
@@ -94,7 +103,12 @@ describe('AuthModule', () => {
       const payload = { username: 'newname' };
       const expected = {
         message: 'Profile updated',
-        user: { userId: 'u1', username: 'newname', email: 'john@test.com', createdAt: '2026-01-01' },
+        user: {
+          userId: 'u1',
+          username: 'newname',
+          email: 'john@test.com',
+          createdAt: '2026-01-01',
+        },
       };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
@@ -107,20 +121,28 @@ describe('AuthModule', () => {
     });
 
     it('should throw validation error if no fields provided', async () => {
-      await expect(client.auth.updateProfile({} as any))
-        .rejects.toThrow("No fields to update. Provide 'username' or 'email'.");
+      await expect(client.auth.updateProfile({} as any)).rejects.toThrow(
+        "No fields to update. Provide 'username' or 'email'."
+      );
     });
 
     it('should throw BadRequestError on 400', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Invalid email format' }));
-      await expect(client.auth.updateProfile({ email: 'invalid' })).rejects.toThrow(BadRequestError);
+      await expect(client.auth.updateProfile({ email: 'invalid' })).rejects.toThrow(
+        BadRequestError
+      );
     });
   });
 
   // --- FindUser ---
   describe('findUser', () => {
     it('should GET /api/v1/user/:user_id', async () => {
-      const userInfo = { userId: 'u42', username: 'jane', email: 'jane@test.com', createdAt: '2026-02-01' };
+      const userInfo = {
+        userId: 'u42',
+        username: 'jane',
+        email: 'jane@test.com',
+        createdAt: '2026-02-01',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
 
       const result = await client.auth.findUser('u42');
@@ -138,7 +160,12 @@ describe('AuthModule', () => {
     });
 
     it('should URL-encode userId', async () => {
-      const userInfo = { userId: 'u/1', username: 'test', email: 'test@t.com', createdAt: '2026-01-01' };
+      const userInfo = {
+        userId: 'u/1',
+        username: 'test',
+        email: 'test@t.com',
+        createdAt: '2026-01-01',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(200, userInfo));
 
       const result = await client.auth.findUser('u/1');

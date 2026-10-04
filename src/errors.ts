@@ -112,3 +112,12 @@ export class ServerError extends ApiError {
     Object.setPrototypeOf(this, ServerError.prototype);
   }
 }
+
+/** Error for duplicate resources or database constraint violations (409 Conflict). */
+export class ConflictError extends ApiError {
+  constructor(message = 'Resource conflict.', errorData?: NebulaErrorResponse) {
+    super(message, 409, errorData);
+    this.name = 'ConflictError';
+    Object.setPrototypeOf(this, ConflictError.prototype);
+  }
+}
