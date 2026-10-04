@@ -1,6 +1,12 @@
 // test/modules/record.test.ts
 import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
-import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams, ListOptions } from '../../src/types';
+import {
+  CreateRecordPayload,
+  UpdateRecordPayload,
+  RecordResponse,
+  FilterParams,
+  ListOptions,
+} from '../../src/types';
 import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
 const { client, mockFetch } = createTestClient();
@@ -32,12 +38,16 @@ describe('RecordModule', () => {
 
     it('should throw BadRequestError on 400', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Schema mismatch' }));
-      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(BadRequestError);
+      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(
+        BadRequestError
+      );
     });
 
     it('should throw NotFoundError on 404', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Table not found' }));
-      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(NotFoundError);
+      await expect(client.records.create(dbName, tableName, sampleData)).rejects.toThrow(
+        NotFoundError
+      );
     });
 
     it('should throw validation error for empty payload', async () => {
@@ -129,9 +139,15 @@ describe('RecordModule', () => {
     });
 
     it('should throw validation error for invalid recordId', async () => {
-      await expect(client.records.get(dbName, tableName, 0)).rejects.toThrow('Record ID must be a positive integer.');
-      await expect(client.records.get(dbName, tableName, -1)).rejects.toThrow('Record ID must be a positive integer.');
-      await expect(client.records.get(dbName, tableName, 1.5)).rejects.toThrow('Record ID must be a positive integer.');
+      await expect(client.records.get(dbName, tableName, 0)).rejects.toThrow(
+        'Record ID must be a positive integer.'
+      );
+      await expect(client.records.get(dbName, tableName, -1)).rejects.toThrow(
+        'Record ID must be a positive integer.'
+      );
+      await expect(client.records.get(dbName, tableName, 1.5)).rejects.toThrow(
+        'Record ID must be a positive integer.'
+      );
     });
   });
 
@@ -151,12 +167,16 @@ describe('RecordModule', () => {
 
     it('should throw BadRequestError on 400', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(400, { error: 'Type mismatch' }));
-      await expect(client.records.update(dbName, tableName, recordId, { value: 'x' })).rejects.toThrow(BadRequestError);
+      await expect(
+        client.records.update(dbName, tableName, recordId, { value: 'x' })
+      ).rejects.toThrow(BadRequestError);
     });
 
     it('should throw NotFoundError on 404', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
-      await expect(client.records.update(dbName, tableName, recordId, { active: true })).rejects.toThrow(NotFoundError);
+      await expect(
+        client.records.update(dbName, tableName, recordId, { active: true })
+      ).rejects.toThrow(NotFoundError);
     });
 
     it('should throw validation error for empty payload', async () => {
@@ -176,11 +196,15 @@ describe('RecordModule', () => {
 
     it('should throw NotFoundError on 404', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
-      await expect(client.records.delete(dbName, tableName, recordId)).rejects.toThrow(NotFoundError);
+      await expect(client.records.delete(dbName, tableName, recordId)).rejects.toThrow(
+        NotFoundError
+      );
     });
 
     it('should throw validation error for invalid recordId', async () => {
-      await expect(client.records.delete(dbName, tableName, 0)).rejects.toThrow('Record ID must be a positive integer.');
+      await expect(client.records.delete(dbName, tableName, 0)).rejects.toThrow(
+        'Record ID must be a positive integer.'
+      );
     });
   });
 

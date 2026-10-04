@@ -1,6 +1,12 @@
 // src/modules/record.ts
 import { makeRequest } from '../http';
-import { CreateRecordPayload, UpdateRecordPayload, RecordResponse, FilterParams, ListOptions } from '../types';
+import {
+  CreateRecordPayload,
+  UpdateRecordPayload,
+  RecordResponse,
+  FilterParams,
+  ListOptions,
+} from '../types';
 import { ModuleContext } from './_common';
 
 export class RecordModule {
@@ -75,7 +81,12 @@ export class RecordModule {
    * @throws {BadRequestError} If filter parameters are invalid for the schema.
    * @throws {ApiError} For other API-related errors.
    */
-  async list(dbName: string, tableName: string, filter?: FilterParams, options?: ListOptions): Promise<RecordResponse[]> {
+  async list(
+    dbName: string,
+    tableName: string,
+    filter?: FilterParams,
+    options?: ListOptions
+  ): Promise<RecordResponse[]> {
     const path = this.buildRecordPath(dbName, tableName);
     // Merge filter and options into a single query params object
     const queryParams: Record<string, string | number | boolean> = { ...filter };
