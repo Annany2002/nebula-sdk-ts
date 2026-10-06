@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Create and drop ordinary or unique column indexes with `client.objects.createIndex()` and `client.objects.dropIndex()`, using JWT or scoped API-key authentication.
+- Export `CreateIndexPayload`, `CreateIndexResponse`, and `DropIndexResponse`, preserving composite column order and canonical SQLite metadata.
+- Verify conflict handling, constraint enforcement/removal, quoted names, protected objects, owner isolation, no retries, and packed JavaScript/TypeScript consumers.
+
+### Changed
+
+- Pin backend integration checks to index-management revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142`.
+
 ## 0.6.0 - 2026-10-06
 
 ### Added

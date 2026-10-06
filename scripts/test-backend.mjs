@@ -78,6 +78,7 @@ try {
     'analytics',
     'diagram',
     'objects',
+    'indexes',
     'exports',
     'details',
     'alter',
