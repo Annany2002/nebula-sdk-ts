@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `4e86a8d072df4d842747d0a19211bf0c29ccc3d5`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -103,7 +103,23 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Database details and schema alteration are available in the backend but do not have SDK methods yet.
+Schema alteration is available in the backend but does not have SDK methods yet.
+
+## Database details (unreleased)
+
+`databases.get()` is available in the current source and is not included in the published 0.5.0 package yet.
+
+```typescript
+const { database } = await client.databases.get('myapp');
+console.log(database.dbName, database.tables, database.totalRecords);
+console.log(database.sizeBytes, database.sizeDisplay, database.apiKeyPrefix);
+```
+
+Use the owner's JWT or an API key scoped to that database. `DatabaseDetailsResponse` contains `database: DatabaseDetails`, with the database/owner IDs, name, server file path, creation timestamp, table count, total record count, size in bytes, formatted size, and optional API-key prefix. The full API key is not returned. `filePath` is server metadata, not a download URL; use the exports module for downloads.
+
+Accurate totals for quoted table names require backend revision `4e86a8d072df4d842747d0a19211bf0c29ccc3d5` or later.
+
+Counts exclude SQLite and Nebula internal tables and views. `sizeBytes` measures the main database file rather than WAL/SHM files or a quota; values are sampled on each request. The backend reports counts and sizes on a best-effort basis when storage reads fail. Creation, listing, deletion, and key management remain JWT-only operations.
 
 ## Schema operations
 
@@ -335,17 +351,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
-| `databases` | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                             |
-| `sql`       | `execute`                                                               |
-| `analytics` | `get`                                                                   |
-| `diagrams`  | `get`                                                                   |
-| `exports`   | `sql`, `sqlite`                                                         |
-| `objects`   | `get`                                                                   |
+| Module      | Methods                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                          |
+| `databases` | `create`, `list`, `get` (unreleased), `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`                           |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                 |
+| `sql`       | `execute`                                                                                   |
+| `analytics` | `get`                                                                                       |
+| `diagrams`  | `get`                                                                                       |
+| `exports`   | `sql`, `sqlite`                                                                             |
+| `objects`   | `get`                                                                                       |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -393,7 +409,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, and export integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, export, and database detail integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 

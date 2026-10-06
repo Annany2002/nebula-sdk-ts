@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+
+- Inspect database metadata, table and record counts, file sizes, and optional API-key prefixes through `client.databases.get(dbName)` using a JWT or scoped API key.
+- Export `DatabaseDetails` and `DatabaseDetailsResponse` matching the backend envelope without exposing API-key secrets.
+- Verify live counts, empty databases, quoted table names, owner isolation, and package consumers.
+
+### Changed
+
+- Pin integration checks to backend revision `4e86a8d072df4d842747d0a19211bf0c29ccc3d5`, which counts records in quoted SQLite tables correctly.
+
 ## 0.5.0 - 2026-10-06
 
 ### Added
