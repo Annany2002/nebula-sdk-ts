@@ -1,6 +1,6 @@
 # Nebula TypeScript SDK
 
-JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, and SQL modules using native Fetch.
+JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, SQL, analytics, diagram, object, and export modules using native Fetch.
 
 The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides the web interface for database and account management.
 
@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. The integration checks target backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -217,9 +217,9 @@ The server classifies SQL beginning with `SELECT`, `PRAGMA`, `EXPLAIN`, or `WITH
 
 SQL writes take effect immediately. Tenant SQL restrictions, including the prohibition on `ATTACH` and `DETACH`, apply equally to SDK calls.
 
-## Analytics (unreleased)
+## Analytics
 
-The analytics module is available in the current source and is not included in the published 0.4.0 package yet.
+The analytics module is available in SDK 0.5.0 and later.
 
 ```typescript
 const report = await client.analytics.get('myapp');
@@ -245,9 +245,9 @@ Telemetry is recorded asynchronously, so a recently completed request may not ap
 
 Database, authentication, rate-limit, and server failures use the existing SDK error classes. Requests are not retried automatically.
 
-## Schema diagrams (unreleased)
+## Schema diagrams
 
-The diagram module is available in the current source and is not included in the published 0.4.0 package yet.
+The diagram module is available in SDK 0.5.0 and later.
 
 ```typescript
 const diagram = await client.diagrams.get('myapp');
@@ -272,9 +272,9 @@ Foreign-key metadata uses `table` for the referenced table, `from` for the sourc
 
 The endpoint returns schema metadata without an image or saved canvas layout. The SDK preserves the response without inferring relationships or generating graph positions. Database, authentication, rate-limit, and server failures use the existing SDK error classes; requests are not retried automatically.
 
-## Database objects (unreleased)
+## Database objects
 
-The objects module is available in the current source and is not included in the published 0.4.0 package yet.
+The objects module is available in SDK 0.5.0 and later.
 
 ```typescript
 const objects = await client.objects.get('myapp');
@@ -295,9 +295,9 @@ The SDK preserves server metadata and uses existing error classes for database, 
 
 Accurate index uniqueness metadata requires backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26` or later. Older servers can report ordinary indexes as unique when `UNIQUE` appears in a name or SQL comment. The SDK does not reinterpret that flag.
 
-## Database exports (unreleased)
+## Database exports
 
-The exports module is available in the current source and is not included in the published 0.4.0 package yet.
+The exports module is available in SDK 0.5.0 and later.
 
 ```typescript
 import { writeFile } from 'node:fs/promises';
@@ -313,7 +313,7 @@ Use the database owner's JWT or a database-scoped API key for either format. `ex
 
 `exports.sqlite()` returns `SQLiteExport` with `data: Uint8Array` and a suggested `filename` of `<dbName>.db`. The server creates a consistent standalone SQLite snapshot, including committed WAL data. The SDK preserves the bytes and checks the 16-byte SQLite header; this does not replace an integrity check. The filename follows the backend naming convention without requiring access to `Content-Disposition`, which the server does not expose through CORS.
 
-In a browser, pass `snapshot.data` to `new Blob([snapshot.data], { type: 'application/octet-stream' })` and use your application's download flow. The SDK does not write files or start downloads. Both exports are buffered in memory and must finish within the configured request timeout, including reading the response body. Set an appropriate timeout for your database size; streaming is not supported.
+In a browser, pass `snapshot.data` to `new Blob([Uint8Array.from(snapshot.data)], { type: 'application/octet-stream' })` and use your application's download flow. The SDK does not write files or start downloads. Both exports are buffered in memory and must finish within the configured request timeout, including reading the response body. Set an appropriate timeout for your database size; streaming is not supported.
 
 Database, authentication, rate-limit, server, and network failures use the existing SDK error classes. Invalid snapshot headers throw `NetworkError`. Requests are not retried automatically and a rejected JWT does not fall back to an API key. These methods download on demand; Nebula does not offer scheduled backups or a server-side restore/upload endpoint.
 
@@ -335,17 +335,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module                   | Methods                                                                 |
-| ------------------------ | ----------------------------------------------------------------------- |
-| `auth`                   | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
-| `databases`              | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`                 | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
-| `records`                | `create`, `list`, `get`, `update`, `delete`                             |
-| `sql`                    | `execute`                                                               |
-| `analytics` (unreleased) | `get`                                                                   |
-| `diagrams` (unreleased)  | `get`                                                                   |
-| `exports` (unreleased)   | `sql`, `sqlite`                                                         |
-| `objects` (unreleased)   | `get`                                                                   |
+| Module      | Methods                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
+| `databases` | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                             |
+| `sql`       | `execute`                                                               |
+| `analytics` | `get`                                                                   |
+| `diagrams`  | `get`                                                                   |
+| `exports`   | `sql`, `sqlite`                                                         |
+| `objects`   | `get`                                                                   |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
