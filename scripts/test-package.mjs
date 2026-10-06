@@ -50,6 +50,7 @@ const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.sql.execute, 'function');
+assert.equal(typeof client.analytics.get, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
 `
   );
@@ -57,7 +58,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -110,6 +111,19 @@ async function checkContracts() {
     void unsafeCell;
   }
   void [count, affected, elapsed, cells];
+  const analytics: DatabaseAnalytics = await client.analytics.get('app');
+  const service: ServiceMetrics = analytics.services[0];
+  const bucket: ServiceMetricBucket | undefined = service.history[0];
+  const finding: AdvisorIssue | undefined = analytics.advisor[0];
+  const traffic: number = analytics.totalRequests;
+  const rate: number = analytics.successRate;
+  const window: string = analytics.timeframe;
+  const tableName: string | undefined = finding?.tableName;
+  // @ts-expect-error Analytics fields match the backend camelCase contract.
+  const oldTraffic: number = analytics.total_requests;
+  // @ts-expect-error The endpoint does not accept configurable reporting windows.
+  await client.analytics.get('app', { timeframe: '7d' });
+  void [bucket, traffic, rate, window, tableName, oldTraffic];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }
 void checkContracts;
