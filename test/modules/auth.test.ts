@@ -14,7 +14,7 @@ describe('AuthModule', () => {
   describe('signup', () => {
     it('should POST credentials and return signup response', async () => {
       const credentials = { username: 'newuser', email: 'new@test.com', password: 'pass123' };
-      const expected = { message: 'Account created', userId: 'u123' };
+      const expected = { message: 'Account created', user_id: 'u123' };
       mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
       const result = await client.auth.signup(credentials);
@@ -60,7 +60,9 @@ describe('AuthModule', () => {
   describe('healthP', () => {
     it('should GET /api/v1/health with ApiKey header', async () => {
       client.setAuthToken(null);
-      mockFetch.mockResolvedValueOnce(mockResponse(200, { status: 'ok' }));
+      mockFetch.mockResolvedValueOnce(
+        mockResponse(200, { authenticated_by: 'api_key', status: 'ok' })
+      );
 
       const result = await client.auth.healthP();
       expect(result).toBeDefined();
