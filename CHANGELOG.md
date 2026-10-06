@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Retrieve request telemetry and schema advisor findings through `client.analytics.get(dbName)` using a JWT or scoped API key.
+- Export `DatabaseAnalytics`, `ServiceMetrics`, `ServiceMetricBucket`, and `AdvisorIssue` matching the backend's fixed 24-hour report.
+- Verify analytics counts, history, advisor findings, and owner/database isolation against the pinned backend and built package consumers.
+
 ## 0.4.0 - 2026-10-06
 
 ### Added
