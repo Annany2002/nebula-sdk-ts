@@ -51,6 +51,7 @@ assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
+assert.equal(typeof client.diagrams.get, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
 `
   );
@@ -58,7 +59,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -124,6 +125,19 @@ async function checkContracts() {
   // @ts-expect-error The endpoint does not accept configurable reporting windows.
   await client.analytics.get('app', { timeframe: '7d' });
   void [bucket, traffic, rate, window, tableName, oldTraffic];
+  const diagram: SchemaDiagram = await client.diagrams.get('app');
+  const diagramTable: TableDiagramInfo = diagram.tables[0];
+  const diagramColumn: TableColumnInfo = diagramTable.columns[0];
+  const foreignKey: ForeignKeyInfo = diagramTable.foreignKeys[0];
+  const action: ForeignKeyAction = foreignKey.onDelete;
+  const columnId: string = diagramColumn.cid;
+  const defaultSQL: string | null = diagramColumn.dflt_value;
+  const foreignKeyCount: number = diagram.totalForeignKeys;
+  // @ts-expect-error PRAGMA primary-key metadata is numeric, not boolean.
+  const booleanPrimary: boolean = diagramColumn.pk;
+  // @ts-expect-error Relationships are table-level foreignKeys, not a relations array.
+  const relations = diagram.relations;
+  void [action, columnId, defaultSQL, foreignKeyCount, booleanPrimary, relations];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }
 void checkContracts;
