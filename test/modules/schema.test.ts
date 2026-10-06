@@ -1,6 +1,12 @@
 // test/modules/schema.test.ts
 import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
-import { SchemaPayload, SchemaInfoResponse, ColumnDefinition } from '../../src/types';
+import {
+  SchemaPayload,
+  SchemaInfoResponse,
+  SchemaCreateResponse,
+  TableListResponse,
+  ColumnDefinition,
+} from '../../src/types';
 import { BadRequestError, NotFoundError } from '../../src/errors';
 
 const { client, mockFetch } = createTestClient();
@@ -22,9 +28,9 @@ describe('SchemaModule', () => {
   // --- Define Schema ---
   describe('define', () => {
     it('should POST schema payload and return info', async () => {
-      const expected: SchemaInfoResponse = {
+      const expected: SchemaCreateResponse = {
+        db_name: dbName,
         table_name: 'tasks',
-        columns: sampleColumns,
         message: 'Table created',
       };
       mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
@@ -51,7 +57,7 @@ describe('SchemaModule', () => {
       await expect(client.schema.define('', samplePayload)).rejects.toThrow(
         'Database name is required.'
       );
-      await expect(client.schema.define(dbName, {} as any)).rejects.toThrow(
+      await expect(client.schema.define(dbName, {} as SchemaPayload)).rejects.toThrow(
         'Table name and at least one column definition are required.'
       );
       await expect(client.schema.define(dbName, { table_name: 't', columns: [] })).rejects.toThrow(
@@ -63,7 +69,7 @@ describe('SchemaModule', () => {
   // --- List Tables ---
   describe('listTables', () => {
     it('should GET table list for a database', async () => {
-      const expected = {
+      const expected: TableListResponse = {
         tables: [
           {
             type: 'table',
@@ -72,7 +78,10 @@ describe('SchemaModule', () => {
             rootpage: '2',
             sql: 'CREATE TABLE tasks (...)',
             createdAt: '2026-01-01',
-            columns: sampleColumns,
+            rowCount: 0,
+            columns: [
+              { cid: '0', name: 'id', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 1 },
+            ],
           },
         ],
       };
@@ -97,7 +106,7 @@ describe('SchemaModule', () => {
   // --- Get Schema ---
   describe('getSchema', () => {
     it('should GET schema for a specific table', async () => {
-      const expected: SchemaInfoResponse = { table_name: 'tasks', columns: sampleColumns };
+      const expected: SchemaInfoResponse = { schema: [{ name: 'id', type: 'INTEGER', pk: true }] };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
       const result = await client.schema.getSchema(dbName, 'tasks');
@@ -108,7 +117,7 @@ describe('SchemaModule', () => {
     });
 
     it('should URL-encode table name', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, { table_name: 'my table', columns: [] }));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, { schema: [] }));
       await client.schema.getSchema(dbName, 'my table');
       expect(getLastRequest(mockFetch).url).toContain(encodeURIComponent('my table'));
     });
@@ -133,7 +142,11 @@ describe('SchemaModule', () => {
         table_name: 'posts',
         columns: [{ name: 'title', type: 'TEXT' }],
       };
-      const expected: SchemaInfoResponse = { ...payload, message: 'Table created' };
+      const expected: SchemaCreateResponse = {
+        db_name: dbName,
+        table_name: payload.table_name,
+        message: 'Table created',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(201, expected));
 
       const result = await client.schema.createTable(dbName, payload);
@@ -148,7 +161,7 @@ describe('SchemaModule', () => {
       await expect(client.schema.createTable('', samplePayload)).rejects.toThrow(
         'Database name is required.'
       );
-      await expect(client.schema.createTable(dbName, {} as any)).rejects.toThrow(
+      await expect(client.schema.createTable(dbName, {} as SchemaPayload)).rejects.toThrow(
         'Table name and at least one column definition are required.'
       );
     });
