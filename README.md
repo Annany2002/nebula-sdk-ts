@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `4e86a8d072df4d842747d0a19211bf0c29ccc3d5`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -335,11 +335,36 @@ for (const trigger of objects.triggers) {
 
 Use the database owner's JWT or an API key scoped to that database. `DatabaseObjects` contains `IndexInfo[]` and `TriggerInfo[]`. Empty collections are arrays. Indexes include their name, table name, uniqueness flag, and original creation SQL. Triggers include their name, target table or view name, and original creation SQL.
 
-This is a read-only inspection endpoint. There are no dedicated object creation, editing, or deletion methods. Use `client.sql.execute()` to create or drop indexes and triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
+The catalog endpoint is read-only. Native column-index creation and deletion are available on unreleased main (see below). Use `client.sql.execute()` for expression or partial indexes and for creating or dropping triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
 
 The SDK preserves server metadata and uses existing error classes for database, authentication, rate-limit, and server failures. Requests are not retried automatically.
 
 Accurate index uniqueness metadata requires backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26` or later. Older servers can report ordinary indexes as unique when `UNIQUE` appears in a name or SQL comment. The SDK does not reinterpret that flag.
+
+### Create and drop indexes
+
+Native index management is available on unreleased main and requires backend revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142` or later. Published SDK 0.6.0 provides catalog inspection only.
+
+```typescript
+const createdIndex = await client.objects.createIndex('myapp', {
+  name: 'idx_users_email',
+  table_name: 'users',
+  columns: ['email'],
+  unique: true,
+});
+console.log(createdIndex.index.name, createdIndex.index.sql);
+
+const droppedIndex = await client.objects.dropIndex('myapp', createdIndex.index.name);
+console.log(droppedIndex.index_name);
+```
+
+`CreateIndexPayload` accepts an index name, an existing ordinary table, one to 64 existing column names in composite index order, and optional `unique` (default false). Names use one to 64 ASCII letters, digits, or underscores; `sqlite_` and `_nebula_` prefixes are reserved. Existing quoted table/column names are preserved. Expressions, partial predicates, descending order, and collations remain SQL operations.
+
+`createIndex()` returns `CreateIndexResponse` with `message`, `db_name`, and an `IndexInfo`. A duplicate schema-object name or existing data that violates uniqueness produces `ConflictError` (409); the server transaction leaves the database unchanged.
+
+`dropIndex()` returns `DropIndexResponse` with `message`, `db_name`, and the canonical `index_name`. Legacy quoted custom-index names are accepted. Table records remain intact; dropping a unique index removes the constraint it enforces. Automatic indexes, internal tables, virtual tables, and their shadow tables are protected (`BadRequestError`); a missing or previously dropped index produces `NotFoundError`.
+
+Both methods accept owner JWTs or database-scoped API keys and use the existing error classes. Writes are not retried automatically. If a response is lost, refresh the catalog before repeating a mutation; no idempotency key is provided.
 
 ## Database exports
 
@@ -391,7 +416,7 @@ This change corrects declarations to match responses the backend already returns
 | `analytics` | `get`                                                                           |
 | `diagrams`  | `get`                                                                           |
 | `exports`   | `sql`, `sqlite`                                                                 |
-| `objects`   | `get`                                                                           |
+| `objects`   | `get`, `createIndex`, `dropIndex`                                               |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -439,7 +464,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, export, and database detail integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, export, database detail, and schema alteration integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 
