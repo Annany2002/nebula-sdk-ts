@@ -2,12 +2,14 @@
 import { makeRequest, RequestContext } from '../http';
 import {
   DbListResponse,
+  DatabaseDetailsResponse,
   DbCreatePayload,
   DbInfoResponse,
   ApiKeyResponse,
   ApiKeyMetadataResponse,
 } from '../types';
 import { ModuleContext } from './_common';
+import { NebulaError } from '../errors';
 
 export class DatabaseModule {
   private context: ModuleContext;
@@ -56,6 +58,18 @@ export class DatabaseModule {
    */
   async list(): Promise<DbListResponse> {
     return makeRequest<DbListResponse>('api/v1/databases', 'GET', this.getRequestContext());
+  }
+
+  /** Inspect one database using its owner's JWT or a database-scoped API key. */
+  async get(dbName: string): Promise<DatabaseDetailsResponse> {
+    if (typeof dbName !== 'string' || !dbName.trim()) {
+      throw new NebulaError('Database name is required.');
+    }
+    return makeRequest<DatabaseDetailsResponse>(
+      `api/v1/databases/${encodeURIComponent(dbName)}`,
+      'GET',
+      { ...this.getRequestContext(), authentication: 'auto' }
+    );
   }
 
   /**

@@ -49,6 +49,7 @@ const { NebulaClient, ConflictError, ApiError } = require('nebula-sdk-ts');
 const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
+assert.equal(typeof client.databases.get, 'function');
 assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
 assert.equal(typeof client.diagrams.get, 'function');
@@ -62,7 +63,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -70,6 +71,13 @@ void client;
 void error;
 interface Item { item_key: string; label: string }
 async function checkContracts() {
+  const detailResult: DatabaseDetailsResponse = await client.databases.get('app');
+  const detail: DatabaseDetails = detailResult.database;
+  const detailCount: number = detail.totalRecords;
+  const detailSize: number = detail.sizeBytes;
+  // @ts-expect-error Database details expose a key prefix, not the credential.
+  const secret: string = detail.apiKey;
+  void [detailCount, detailSize, secret];
   const page: RecordListResponse<Item> = await client.records.list<Item>('app', 'items');
   const label: string = page.records[0].label;
   const total: number = page.pagination.total;
