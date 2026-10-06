@@ -2,12 +2,13 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-06
+
 ### Added
 
 - Export SQL dumps through `client.exports.sql(dbName)` and buffered standalone SQLite snapshots through `client.exports.sqlite(dbName)` using a JWT or scoped API key.
 - Export `SQLExport` and `SQLiteExport` types, preserving SQL text and binary bytes without writing files or triggering browser downloads.
 - Verify export restoration, SQLite data types and dependent objects, database isolation, binary body deadlines, and built package consumers.
-
 - Inspect custom indexes and triggers through `client.objects.get(dbName)` with JWT or scoped API-key authentication.
 - Export `DatabaseObjects`, `IndexInfo`, and `TriggerInfo` for the read-only catalog; object creation and removal continue to use SQL execution.
 - Verify index use, uniqueness constraints, trigger execution, SQL-based removal, and owner/database isolation against the backend and built package consumers.
@@ -21,7 +22,6 @@
 ### Changed
 
 - Share authentication, error mapping, and complete body-read deadlines between JSON and binary HTTP requests.
-
 - Pin integration checks to backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`, which reads index uniqueness from SQLite metadata instead of SQL text.
 
 ## 0.4.0 - 2026-10-06
