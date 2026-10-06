@@ -4,6 +4,9 @@
 
 ### Added
 
+- Alter table schemas through `client.schema.alterTable(dbName, tableName, payload)` with add/drop columns, column/table renames, foreign-key definitions, SQL defaults, and ordered transactional batches.
+- Export `AlterColumnDefinition`, `AlterTableOperation`, `AlterTablePayload`, and `AlterTableResponse`, including nullable post-commit schema metadata.
+- Verify live schema changes, batch rollback, creation metadata, tenant isolation, authentication, and packed JavaScript/TypeScript consumers.
 - Inspect database metadata, table and record counts, file sizes, and optional API-key prefixes through `client.databases.get(dbName)` using a JWT or scoped API key.
 - Export `DatabaseDetails` and `DatabaseDetailsResponse` matching the backend envelope without exposing API-key secrets.
 - Verify live counts, empty databases, quoted table names, owner isolation, and package consumers.
