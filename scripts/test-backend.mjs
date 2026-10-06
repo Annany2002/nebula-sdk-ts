@@ -80,6 +80,7 @@ try {
     'objects',
     'exports',
     'details',
+    'alter',
   ]) {
     // Separate servers keep each suite below the real per-IP rate limit.
     const suiteDirectory = join(temporary, suite);
