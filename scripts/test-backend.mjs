@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -10,7 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const sdk = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backend = resolve(process.env.NEBULA_BACKEND_DIR || join(sdk, '..', 'nebula-backend'));
 await access(join(backend, 'go.mod'));
-const temporary = await mkdtemp(join(tmpdir(), 'nebula-sdk-auth-'));
+const temporary = await mkdtemp(join(tmpdir(), 'nebula-sdk-contracts-'));
 let server;
 let logs = '';
 
@@ -68,51 +68,58 @@ async function stopServer() {
 }
 
 try {
-  console.log('Building the local backend for isolated SDK authentication tests…');
+  console.log('Building the local backend for isolated SDK authentication and contract tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
-  const port = await freePort();
-  const url = `http://127.0.0.1:${port}`;
-  server = spawn(binary, [], {
-    cwd: temporary,
-    env: {
-      ...process.env,
-      APP_ENV: 'production',
-      SERVER_PORT: String(port),
-      JWT_SECRET: randomBytes(32).toString('hex'),
-      JWT_EXPIRATION_HOURS: '1',
-      DATABASE_DIRECTORY: join(temporary, 'data'),
-      DATABASE_DIRECTORY_FILE: 'metadata.db',
-      ALLOWED_ORIGINS: 'http://localhost:3000',
-      GIN_MODE: 'release',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  server.stdout.on('data', (chunk) => {
-    logs = (logs + chunk).slice(-12000);
-  });
-  server.stderr.on('data', (chunk) => {
-    logs = (logs + chunk).slice(-12000);
-  });
-  server.once('error', (error) => {
-    logs += error.message;
-  });
-  await ready(url);
-  console.log('Running SDK tests against a temporary backend and temporary SQLite data.');
-  await run(
-    process.execPath,
-    [
-      join(sdk, 'node_modules/jest/bin/jest.js'),
-      '--runInBand',
-      '--coverage=false',
-      'test/integration/auth.integration.test.ts',
-    ],
-    {
-      cwd: sdk,
-      env: { ...process.env, NEBULA_TEST_URL: url },
-      stdio: 'inherit',
-    }
-  );
+  for (const suite of ['auth', 'contracts']) {
+    // Separate servers keep each suite below the real per-IP rate limit.
+    const suiteDirectory = join(temporary, suite);
+    await mkdir(suiteDirectory);
+    logs = '';
+    const port = await freePort();
+    const url = `http://127.0.0.1:${port}`;
+    server = spawn(binary, [], {
+      cwd: suiteDirectory,
+      env: {
+        ...process.env,
+        APP_ENV: 'production',
+        SERVER_PORT: String(port),
+        JWT_SECRET: randomBytes(32).toString('hex'),
+        JWT_EXPIRATION_HOURS: '1',
+        DATABASE_DIRECTORY: join(suiteDirectory, 'data'),
+        DATABASE_DIRECTORY_FILE: 'metadata.db',
+        ALLOWED_ORIGINS: 'http://localhost:3000',
+        GIN_MODE: 'release',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    server.stdout.on('data', (chunk) => {
+      logs = (logs + chunk).slice(-12000);
+    });
+    server.stderr.on('data', (chunk) => {
+      logs = (logs + chunk).slice(-12000);
+    });
+    server.once('error', (error) => {
+      logs += error.message;
+    });
+    await ready(url);
+    console.log('Running SDK tests against a temporary backend and temporary SQLite data.');
+    await run(
+      process.execPath,
+      [
+        join(sdk, 'node_modules/jest/bin/jest.js'),
+        '--runInBand',
+        '--coverage=false',
+        `test/integration/${suite}.integration.test.ts`,
+      ],
+      {
+        cwd: sdk,
+        env: { ...process.env, NEBULA_TEST_URL: url },
+        stdio: 'inherit',
+      }
+    );
+    await stopServer();
+  }
 } finally {
   await stopServer();
   await rm(temporary, { recursive: true, force: true });
