@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
+Database details and schema alteration are available in the backend but do not have SDK methods yet.
 
 ## Schema operations
 
@@ -295,6 +295,28 @@ The SDK preserves server metadata and uses existing error classes for database, 
 
 Accurate index uniqueness metadata requires backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26` or later. Older servers can report ordinary indexes as unique when `UNIQUE` appears in a name or SQL comment. The SDK does not reinterpret that flag.
 
+## Database exports (unreleased)
+
+The exports module is available in the current source and is not included in the published 0.4.0 package yet.
+
+```typescript
+import { writeFile } from 'node:fs/promises';
+
+const dump = await client.exports.sql('myapp');
+await writeFile(dump.filename, dump.sql, 'utf8');
+
+const snapshot = await client.exports.sqlite('myapp');
+await writeFile(snapshot.filename, snapshot.data);
+```
+
+Use the database owner's JWT or a database-scoped API key for either format. `exports.sql()` returns `SQLExport` with the server's `sql` text and `filename`. The SQL dump includes table definitions, rows, indexes, views, and triggers; the server reads schema and data in one transaction. Empty databases still produce a transaction-wrapped SQL dump.
+
+`exports.sqlite()` returns `SQLiteExport` with `data: Uint8Array` and a suggested `filename` of `<dbName>.db`. The server creates a consistent standalone SQLite snapshot, including committed WAL data. The SDK preserves the bytes and checks the 16-byte SQLite header; this does not replace an integrity check. The filename follows the backend naming convention without requiring access to `Content-Disposition`, which the server does not expose through CORS.
+
+In a browser, pass `snapshot.data` to `new Blob([snapshot.data], { type: 'application/octet-stream' })` and use your application's download flow. The SDK does not write files or start downloads. Both exports are buffered in memory and must finish within the configured request timeout, including reading the response body. Set an appropriate timeout for your database size; streaming is not supported.
+
+Database, authentication, rate-limit, server, and network failures use the existing SDK error classes. Invalid snapshot headers throw `NetworkError`. Requests are not retried automatically and a rejected JWT does not fall back to an API key. These methods download on demand; Nebula does not offer scheduled backups or a server-side restore/upload endpoint.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -322,6 +344,7 @@ This change corrects declarations to match responses the backend already returns
 | `sql`                    | `execute`                                                               |
 | `analytics` (unreleased) | `get`                                                                   |
 | `diagrams` (unreleased)  | `get`                                                                   |
+| `exports` (unreleased)   | `sql`, `sqlite`                                                         |
 | `objects` (unreleased)   | `get`                                                                   |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
@@ -370,7 +393,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, and object integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, and export integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 

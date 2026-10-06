@@ -53,6 +53,8 @@ assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
 assert.equal(typeof client.diagrams.get, 'function');
 assert.equal(typeof client.objects.get, 'function');
+assert.equal(typeof client.exports.sql, 'function');
+assert.equal(typeof client.exports.sqlite, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
 `
   );
@@ -60,7 +62,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -150,6 +152,18 @@ async function checkContracts() {
   // @ts-expect-error The objects endpoint does not offer creation methods.
   await client.objects.createIndex('app', { name: 'lookup' });
   void [unique, indexSQL, target, objectTables];
+  const dump: SQLExport = await client.exports.sql('app');
+  const snapshot: SQLiteExport = await client.exports.sqlite('app');
+  const dumpSQL: string = dump.sql;
+  const bytes: Uint8Array = snapshot.data;
+  const filename: string = snapshot.filename;
+  // @ts-expect-error SQL exports are JSON envelopes, not bare strings.
+  const bareSQL: string = await client.exports.sql('app');
+  // @ts-expect-error Snapshots are byte arrays, not parsed record arrays.
+  const parsedRows: Item[] = snapshot.data;
+  // @ts-expect-error There is no server restore/upload endpoint.
+  await client.exports.restore('app', snapshot);
+  void [dumpSQL, bytes, filename, bareSQL, parsedRows];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }
 void checkContracts;

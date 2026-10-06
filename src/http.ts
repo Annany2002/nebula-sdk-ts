@@ -89,6 +89,42 @@ export async function makeRequest<T>(
   queryParams?: Record<string, string | number | boolean>,
   body?: unknown
 ): Promise<T> {
+  return sendRequest(
+    path,
+    method,
+    context,
+    queryParams,
+    body,
+    'application/json',
+    async (response) => (await readResponse(response)) as T
+  );
+}
+
+/** @internal Buffered binary GET; shares authentication, errors, and the body-read deadline. */
+export async function makeBinaryRequest(
+  path: string,
+  context: RequestContext
+): Promise<Uint8Array> {
+  return sendRequest(
+    path,
+    'GET',
+    context,
+    undefined,
+    undefined,
+    'application/octet-stream',
+    async (response) => new Uint8Array(await response.arrayBuffer())
+  );
+}
+
+async function sendRequest<T>(
+  path: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+  context: RequestContext,
+  queryParams: Record<string, string | number | boolean> | undefined,
+  body: unknown,
+  accept: string,
+  readResult: (response: Response) => Promise<T>
+): Promise<T> {
   const fetchFn = context.fetch ?? globalThis.fetch;
   const requestTimeout = context.timeout ?? DEFAULT_TIMEOUT;
   const url = new URL(`${context.baseURL.replace(/\/$/, '')}/${path.replace(/^\//, '')}`);
@@ -98,7 +134,7 @@ export async function makeRequest<T>(
     });
   }
 
-  const headers: Record<string, string> = { Accept: 'application/json' };
+  const headers: Record<string, string> = { Accept: accept };
   const credential = authorization(context);
   if (credential) headers.Authorization = credential;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -113,9 +149,11 @@ export async function makeRequest<T>(
       body: serializedBody,
       signal: controller.signal,
     });
-    const result = await readResponse(response);
-    if (!response.ok) throwApiError(response.status, errorData(result, response.status));
-    return result as T;
+    if (!response.ok) {
+      const result = await readResponse(response);
+      throwApiError(response.status, errorData(result, response.status));
+    }
+    return await readResult(response);
   } catch (cause) {
     if (controller.signal.aborted) {
       throw new TimeoutError(`Request timed out after ${requestTimeout}ms`);
