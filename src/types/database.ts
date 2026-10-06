@@ -16,6 +16,17 @@ export interface DbListResponse {
   databases: DbListRType[];
 }
 
+/** Live database details; sizeBytes is the main database file size, excluding WAL/SHM files. */
+export interface DatabaseDetails extends DbListRType {
+  totalRecords: number;
+  sizeBytes: number;
+  sizeDisplay: string;
+}
+
+export interface DatabaseDetailsResponse {
+  database: DatabaseDetails;
+}
+
 /** Payload for creating a new database */
 export interface DbCreatePayload {
   db_name: string;
