@@ -4,12 +4,19 @@
 
 ### Added
 
+- Inspect custom indexes and triggers through `client.objects.get(dbName)` with JWT or scoped API-key authentication.
+- Export `DatabaseObjects`, `IndexInfo`, and `TriggerInfo` for the read-only catalog; object creation and removal continue to use SQL execution.
+- Verify index use, uniqueness constraints, trigger execution, SQL-based removal, and owner/database isolation against the backend and built package consumers.
 - Inspect tables, columns, row counts, creation SQL, and foreign-key relationships through `client.diagrams.get(dbName)` with JWT or scoped API-key authentication.
 - Export `SchemaDiagram`, `TableDiagramInfo`, and `ForeignKeyInfo`, preserving SQLite metadata and composite-key column pairs.
 - Verify diagram metadata, empty databases, foreign-key actions, and owner/database isolation against the pinned backend and built package consumers.
 - Retrieve request telemetry and schema advisor findings through `client.analytics.get(dbName)` using a JWT or scoped API key.
 - Export `DatabaseAnalytics`, `ServiceMetrics`, `ServiceMetricBucket`, and `AdvisorIssue` matching the backend's fixed 24-hour report.
 - Verify analytics counts, history, advisor findings, and owner/database isolation against the pinned backend and built package consumers.
+
+### Changed
+
+- Pin integration checks to backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`, which reads index uniqueness from SQLite metadata instead of SQL text.
 
 ## 0.4.0 - 2026-10-06
 
