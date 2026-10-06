@@ -71,7 +71,7 @@ try {
   console.log('Building the local backend for isolated SDK authentication and contract tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
-  for (const suite of ['auth', 'contracts']) {
+  for (const suite of ['auth', 'contracts', 'sql']) {
     // Separate servers keep each suite below the real per-IP rate limit.
     const suiteDirectory = join(temporary, suite);
     await mkdir(suiteDirectory);

@@ -206,7 +206,7 @@ suite('Existing SDK contracts against the local Go backend', () => {
     ['text_key', 'item_key TEXT PRIMARY KEY', 'key one?#'],
     ['renamed_key', 'item_key INTEGER PRIMARY KEY', -7],
   ])('uses the actual primary key of %s for record CRUD', async (tableName, definition, id) => {
-    // Raw SQL is only fixture setup; SQL SDK support belongs to the next stage.
+    // Raw SQL creates fixtures with custom primary keys.
     const setup = await fetch(`${baseURL}/api/v1/databases/${database}/sql`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

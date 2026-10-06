@@ -49,6 +49,7 @@ const { NebulaClient, ConflictError, ApiError } = require('nebula-sdk-ts');
 const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
+assert.equal(typeof client.sql.execute, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
 `
   );
@@ -56,7 +57,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -91,6 +92,24 @@ async function checkContracts() {
   // @ts-expect-error Public user metadata does not expose passwords.
   const password: string = user.password;
   const health: ProtectedHealthResponse = await client.auth.healthP();
+  const sql: SQLQueryResult<[number, string | null]> = await client.sql.execute<[number, string | null]>('app', 'SELECT id, label FROM items');
+  const count: number = sql.rowCount;
+  const affected: number = sql.rowsAffected;
+  const elapsed: number = sql.executionMs;
+  const cells: [number, string | null][] | undefined = sql.rows;
+  if (sql.rows) {
+    const id: number = sql.rows[0][0];
+    // @ts-expect-error SQL rows are tuples, not named objects.
+    const oldSQLLabel = sql.rows[0].label;
+    void [id, oldSQLLabel];
+  }
+  const rawSQL = await client.sql.execute('app', 'SELECT 1');
+  if (rawSQL.rows) {
+    // @ts-expect-error Default SQL cell types require narrowing.
+    const unsafeCell: number = rawSQL.rows[0][0];
+    void unsafeCell;
+  }
+  void [count, affected, elapsed, cells];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }
 void checkContracts;

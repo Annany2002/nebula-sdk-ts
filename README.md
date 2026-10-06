@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0. Version 0.2.0 has the older declarations
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-SQL execution, analytics, diagrams, object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
+Analytics, diagrams, object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
 
 ## Schema operations
 
@@ -187,6 +187,36 @@ const result = await client.records.list(
 
 Optional generics describe rows for your application; they do not validate JSON at runtime. When selecting fields, declare the selected shape rather than the full table row. Without a generic, column values are `unknown` and no `id` field is assumed.
 
+## SQL execution (unreleased)
+
+The SQL module is available in the current source and is not included in the published 0.3.0 package yet.
+
+```typescript
+const result = await client.sql.execute<[number, string]>(
+  'myapp',
+  'SELECT id, name FROM customers ORDER BY id LIMIT 10'
+);
+
+console.log(result.columns, result.rowCount, result.executionMs);
+for (const [id, name] of result.rows ?? []) {
+  console.log(id, name);
+}
+
+const statement = await client.sql.execute(
+  'myapp',
+  "UPDATE customers SET name = 'Avery Rivera' WHERE id = 1"
+);
+console.log(statement.rowsAffected);
+```
+
+Use a JWT session or an API key scoped to the selected database. The endpoint accepts SQL text without bound parameters. Add `LIMIT` in the SQL when limiting result size.
+
+`SQLQueryResult` preserves the server response: optional `columns` and `rows`, required `rowCount`, `rowsAffected`, and `executionMs`, and an optional `message`. Rows are arrays in column order. Empty query results and write responses can omit `rows`; statements can also omit `columns`. Tuple generics describe expected values without runtime validation; cells default to `unknown`.
+
+The server classifies SQL beginning with `SELECT`, `PRAGMA`, `EXPLAIN`, or `WITH` as a query. Other statements use the execution path. The SDK sends SQL unchanged and does not infer or normalize results. SQL failures map to `BadRequestError`; database and authentication errors use the existing SDK error classes. Requests are not retried automatically.
+
+SQL writes take effect immediately. Tenant SQL restrictions, including the prohibition on `ATTACH` and `DETACH`, apply equally to SDK calls.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -205,12 +235,13 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
-| `databases` | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                             |
+| Module             | Methods                                                                 |
+| ------------------ | ----------------------------------------------------------------------- |
+| `auth`             | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
+| `databases`        | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`           | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
+| `records`          | `create`, `list`, `get`, `update`, `delete`                             |
+| `sql` (unreleased) | `execute`                                                               |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -258,7 +289,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication and contract integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, and SQL integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 
