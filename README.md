@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Diagrams, object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
+Object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
 
 ## Schema operations
 
@@ -245,6 +245,33 @@ Telemetry is recorded asynchronously, so a recently completed request may not ap
 
 Database, authentication, rate-limit, and server failures use the existing SDK error classes. Requests are not retried automatically.
 
+## Schema diagrams (unreleased)
+
+The diagram module is available in the current source and is not included in the published 0.4.0 package yet.
+
+```typescript
+const diagram = await client.diagrams.get('myapp');
+console.log(diagram.totalTables, diagram.totalForeignKeys);
+
+for (const table of diagram.tables) {
+  console.log(table.name, table.rowCount, table.sql);
+  for (const column of table.columns) {
+    console.log(column.cid, column.name, column.type, column.pk, column.dflt_value);
+  }
+  for (const foreignKey of table.foreignKeys) {
+    console.log(table.name, foreignKey.from, foreignKey.table, foreignKey.to);
+  }
+}
+```
+
+Use the database owner's JWT or an API key scoped to that database. `SchemaDiagram` contains `TableDiagramInfo[]`, `totalTables`, and `totalForeignKeys`. Each table includes its name, `TableColumnInfo[]`, `ForeignKeyInfo[]`, current row count, and original creation SQL. Empty databases return `tables: []` with both totals set to zero. The backend orders tables by name and excludes views, SQLite internal tables, and Nebula metadata tables.
+
+Column IDs (`cid`) are strings. `notnull` and `pk` are numeric SQLite metadata; composite primary keys can have `pk` values greater than one. Defaults (`dflt_value`) are SQL expression strings or `null`, rather than parsed JavaScript values.
+
+Foreign-key metadata uses `table` for the referenced table, `from` for the source column, `to` for the referenced column, and camelCase `onUpdate`/`onDelete` actions. These read fields differ from the snake_case fields in schema creation payloads. Composite foreign keys share an `id` within their source table and have separate `seq` values for each column pair. `totalForeignKeys` counts reported column pairs, rather than distinct constraints.
+
+The endpoint returns schema metadata without an image or saved canvas layout. The SDK preserves the response without inferring relationships or generating graph positions. Database, authentication, rate-limit, and server failures use the existing SDK error classes; requests are not retried automatically.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -271,6 +298,7 @@ This change corrects declarations to match responses the backend already returns
 | `records`                | `create`, `list`, `get`, `update`, `delete`                             |
 | `sql`                    | `execute`                                                               |
 | `analytics` (unreleased) | `get`                                                                   |
+| `diagrams` (unreleased)  | `get`                                                                   |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -318,7 +346,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, and analytics integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, and diagram integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 
