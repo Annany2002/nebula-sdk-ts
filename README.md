@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0. Version 0.2.0 has the older declarations; see the migration guide below. The integration checks target backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. The integration checks target backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -187,9 +187,9 @@ const result = await client.records.list(
 
 Optional generics describe rows for your application; they do not validate JSON at runtime. When selecting fields, declare the selected shape rather than the full table row. Without a generic, column values are `unknown` and no `id` field is assumed.
 
-## SQL execution (unreleased)
+## SQL execution
 
-The SQL module is available in the current source and is not included in the published 0.3.0 package yet.
+The SQL module is available in SDK 0.4.0 and later.
 
 ```typescript
 const result = await client.sql.execute<[number, string]>(
@@ -235,13 +235,13 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module             | Methods                                                                 |
-| ------------------ | ----------------------------------------------------------------------- |
-| `auth`             | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
-| `databases`        | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`           | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
-| `records`          | `create`, `list`, `get`, `update`, `delete`                             |
-| `sql` (unreleased) | `execute`                                                               |
+| Module      | Methods                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
+| `databases` | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                             |
+| `sql`       | `execute`                                                               |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
