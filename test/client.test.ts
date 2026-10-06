@@ -53,6 +53,7 @@ describe('NebulaClient Initialization', () => {
     expect(client.schema).toBeDefined();
     expect(client.records).toBeDefined();
     expect(client.sql).toBeDefined();
+    expect(client.analytics).toBeDefined();
   });
 
   it('should apply default timeout of 30000ms', () => {

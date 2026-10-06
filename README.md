@@ -1,6 +1,6 @@
 # Nebula TypeScript SDK
 
-JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, and record modules using native Fetch.
+JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, and SQL modules using native Fetch.
 
 The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides the web interface for database and account management.
 
@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Analytics, diagrams, object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
+Diagrams, object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
 
 ## Schema operations
 
@@ -217,6 +217,34 @@ The server classifies SQL beginning with `SELECT`, `PRAGMA`, `EXPLAIN`, or `WITH
 
 SQL writes take effect immediately. Tenant SQL restrictions, including the prohibition on `ATTACH` and `DETACH`, apply equally to SDK calls.
 
+## Analytics (unreleased)
+
+The analytics module is available in the current source and is not included in the published 0.4.0 package yet.
+
+```typescript
+const report = await client.analytics.get('myapp');
+console.log(report.totalRequests, report.successRate, report.timeframe);
+
+for (const service of report.services) {
+  console.log(service.name, service.requests, service.warnings, service.errors);
+  for (const bucket of service.history) {
+    console.log(bucket.timestamp, bucket.requests);
+  }
+}
+
+for (const finding of report.advisor) {
+  console.log(finding.severity, finding.title, finding.tableName, finding.suggestion);
+}
+```
+
+Use the database owner's JWT or an API key scoped to that database. `DatabaseAnalytics` includes `ServiceMetrics[]` and `AdvisorIssue[]`; each service contains `ServiceMetricBucket[]` history. A finding's `tableName` is optional. The SDK preserves the response without recomputing counts, percentages, or findings.
+
+The server uses a fixed previous-24-hour window (`timeframe: '24h'`), with no timeframe or pagination parameters. `successRate` is a percentage from 0 to 100 and is 100 when no requests have been recorded. Service warnings count HTTP 4xx responses; errors count HTTP 5xx responses. Service history contains hour labels such as `14:00`, rather than full timestamps, and the backend returns at most 12 populated buckets per service.
+
+Telemetry is recorded asynchronously, so a recently completed request may not appear immediately. Reading analytics does not add traffic to the report. Schema advisor findings describe the current schema and are not a complete security audit.
+
+Database, authentication, rate-limit, and server failures use the existing SDK error classes. Requests are not retried automatically.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -235,13 +263,14 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
-| `databases` | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                             |
-| `sql`       | `execute`                                                               |
+| Module                   | Methods                                                                 |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `auth`                   | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`      |
+| `databases`              | `create`, `list`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`                 | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`       |
+| `records`                | `create`, `list`, `get`, `update`, `delete`                             |
+| `sql`                    | `execute`                                                               |
+| `analytics` (unreleased) | `get`                                                                   |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -289,7 +318,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, and SQL integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, and analytics integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 

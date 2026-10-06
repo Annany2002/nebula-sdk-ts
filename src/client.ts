@@ -8,6 +8,7 @@ import { ModuleContext, ResolvedClientConfig } from './modules/_common';
 import { DEFAULT_TIMEOUT } from './config';
 import { RecordModule } from './modules/record';
 import { SQLModule } from './modules/sql';
+import { AnalyticsModule } from './modules/analytics';
 
 /**
  * Main client class for interacting with the Nebula  API.
@@ -22,6 +23,7 @@ export class NebulaClient {
   public readonly schema: SchemaModule;
   public readonly records: RecordModule;
   public readonly sql: SQLModule;
+  public readonly analytics: AnalyticsModule;
 
   /**
    * Creates an instance of the NebulaClient.
@@ -73,6 +75,7 @@ export class NebulaClient {
     this.schema = new SchemaModule(context);
     this.records = new RecordModule(context);
     this.sql = new SQLModule(context);
+    this.analytics = new AnalyticsModule(context);
   }
 
   /**
