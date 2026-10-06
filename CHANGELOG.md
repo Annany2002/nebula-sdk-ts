@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Execute SQL through `client.sql.execute(dbName, query)` with JWT or scoped API-key authentication.
+- Export `SQLQueryResult` with optional ordered rows/columns, execution metadata, and optional tuple generics.
+- Verify SQL reads, writes, empty results, errors, and database isolation against the pinned backend and built package consumers.
+
 ## 0.3.0 - 2026-10-06
 
 ### Fixed
