@@ -10,6 +10,7 @@ import { RecordModule } from './modules/record';
 import { SQLModule } from './modules/sql';
 import { AnalyticsModule } from './modules/analytics';
 import { DiagramModule } from './modules/diagram';
+import { ObjectsModule } from './modules/objects';
 
 /**
  * Main client class for interacting with the Nebula  API.
@@ -26,6 +27,7 @@ export class NebulaClient {
   public readonly sql: SQLModule;
   public readonly analytics: AnalyticsModule;
   public readonly diagrams: DiagramModule;
+  public readonly objects: ObjectsModule;
 
   /**
    * Creates an instance of the NebulaClient.
@@ -79,6 +81,7 @@ export class NebulaClient {
     this.sql = new SQLModule(context);
     this.analytics = new AnalyticsModule(context);
     this.diagrams = new DiagramModule(context);
+    this.objects = new ObjectsModule(context);
   }
 
   /**

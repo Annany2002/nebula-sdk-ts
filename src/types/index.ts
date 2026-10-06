@@ -8,3 +8,4 @@ export * from './record';
 export * from './sql';
 export * from './analytics';
 export * from './diagram';
+export * from './objects';

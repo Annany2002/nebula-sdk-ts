@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. The integration checks target backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. The integration checks target backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Object inspection, exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
+Exports, database details, and schema alteration are available in the backend but do not have SDK methods yet.
 
 ## Schema operations
 
@@ -272,6 +272,29 @@ Foreign-key metadata uses `table` for the referenced table, `from` for the sourc
 
 The endpoint returns schema metadata without an image or saved canvas layout. The SDK preserves the response without inferring relationships or generating graph positions. Database, authentication, rate-limit, and server failures use the existing SDK error classes; requests are not retried automatically.
 
+## Database objects (unreleased)
+
+The objects module is available in the current source and is not included in the published 0.4.0 package yet.
+
+```typescript
+const objects = await client.objects.get('myapp');
+
+for (const index of objects.indexes) {
+  console.log(index.name, index.tableName, index.unique, index.sql);
+}
+for (const trigger of objects.triggers) {
+  console.log(trigger.name, trigger.tableName, trigger.sql);
+}
+```
+
+Use the database owner's JWT or an API key scoped to that database. `DatabaseObjects` contains `IndexInfo[]` and `TriggerInfo[]`. Empty collections are arrays. Indexes include their name, table name, uniqueness flag, and original creation SQL. Triggers include their name, target table or view name, and original creation SQL.
+
+This is a read-only inspection endpoint. There are no dedicated object creation, editing, or deletion methods. Use `client.sql.execute()` to create or drop indexes and triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
+
+The SDK preserves server metadata and uses existing error classes for database, authentication, rate-limit, and server failures. Requests are not retried automatically.
+
+Accurate index uniqueness metadata requires backend revision `e714059ca8c5ac72848a902b5edab325ade2cc26` or later. Older servers can report ordinary indexes as unique when `UNIQUE` appears in a name or SQL comment. The SDK does not reinterpret that flag.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -299,6 +322,7 @@ This change corrects declarations to match responses the backend already returns
 | `sql`                    | `execute`                                                               |
 | `analytics` (unreleased) | `get`                                                                   |
 | `diagrams` (unreleased)  | `get`                                                                   |
+| `objects` (unreleased)   | `get`                                                                   |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -346,7 +370,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, and diagram integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go and a C compiler. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, and object integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 
