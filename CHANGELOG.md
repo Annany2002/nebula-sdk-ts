@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-10-06
+
 ### Fixed
 
 - Align record list declarations with `{ records, pagination }` and separate create/update acknowledgements from full rows.
@@ -14,7 +16,7 @@
 
 - Add optional row generics for record reads, column/table foreign-key types, and support for the backend's legacy `schema` payload alias.
 - Verify existing SDK contracts against isolated backend servers and pin CI to backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
-- Document migration from the incorrect 0.2.0 declarations. These changes are not yet published.
+- Document migration from the incorrect 0.2.0 declarations.
 
 ## 0.2.0 - 2026-10-04
 
