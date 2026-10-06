@@ -335,7 +335,7 @@ for (const trigger of objects.triggers) {
 
 Use the database owner's JWT or an API key scoped to that database. `DatabaseObjects` contains `IndexInfo[]` and `TriggerInfo[]`. Empty collections are arrays. Indexes include their name, table name, uniqueness flag, and original creation SQL. Triggers include their name, target table or view name, and original creation SQL.
 
-The catalog endpoint is read-only. Native column-index creation and deletion are available on unreleased main (see below). Use `client.sql.execute()` for expression or partial indexes and for creating or dropping triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
+The catalog endpoint is read-only. Native column-index creation and deletion are available in SDK 0.7.0 and later (see below). Use `client.sql.execute()` for expression or partial indexes and for creating or dropping triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
 
 The SDK preserves server metadata and uses existing error classes for database, authentication, rate-limit, and server failures. Requests are not retried automatically.
 
@@ -343,7 +343,7 @@ Accurate index uniqueness metadata requires backend revision `e714059ca8c5ac7284
 
 ### Create and drop indexes
 
-Native index management is available on unreleased main and requires backend revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142` or later. Published SDK 0.6.0 provides catalog inspection only.
+Native index management is available in SDK 0.7.0 and later and requires backend revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142` or later.
 
 ```typescript
 const createdIndex = await client.objects.createIndex('myapp', {
