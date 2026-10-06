@@ -44,6 +44,30 @@ export interface SchemaInfoResponse {
   schema: SchemaColumn[];
 }
 
+export interface AlterColumnDefinition extends ColumnDefinition {
+  /** SQLite default expression, such as "0" or "'draft'"; null is treated as omitted. */
+  default_value?: string | null;
+  not_null?: boolean;
+}
+
+export type AlterTableOperation =
+  | { action: 'add_column'; column: AlterColumnDefinition }
+  | { action: 'drop_column'; column_name: string }
+  | { action: 'rename_column'; old_name: string; new_name: string }
+  | { action: 'rename_table'; new_table_name: string };
+
+export type AlterTablePayload = AlterTableOperation | { operations: AlterTableOperation[] };
+
+export interface AlterTableResponse {
+  message: string;
+  db_name: string;
+  /** Final table name after all operations. */
+  table_name: string;
+  statements: string[];
+  /** Null if the server cannot read metadata after committing the alteration. */
+  schema: SchemaColumn[] | null;
+}
+
 /** SQLite PRAGMA table_info metadata returned by listTables, distinct from getSchema. */
 export interface TableColumnInfo {
   cid: string;

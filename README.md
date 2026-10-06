@@ -103,7 +103,7 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Schema alteration is available in the backend but does not have SDK methods yet.
+Database details and schema alteration are available in the current source; they are not included in the published 0.5.0 package yet.
 
 ## Database details (unreleased)
 
@@ -168,6 +168,36 @@ await client.schema.createTable('myapp', {
 ```
 
 Use `foreign_keys` for table-level constraints with `column`, `target_table`, `target_column`, and optional `on_delete`/`on_update`. Supported actions are `CASCADE`, `SET NULL`, `SET DEFAULT`, `RESTRICT`, and `NO ACTION`. The simplified `getSchema()` reader may include constraint entries; use the column metadata from `listTables()` for reliable column inspection.
+
+## Schema alteration (unreleased)
+
+Use `schema.alterTable()` with a single `AlterTableOperation` or an ordered batch of operations. Both an owner JWT and a database-scoped API key are accepted.
+
+```typescript
+const result = await client.schema.alterTable('myapp', 'customers', {
+  operations: [
+    {
+      action: 'add_column',
+      column: { name: 'role', type: 'TEXT', default_value: "'member'", not_null: true },
+    },
+    { action: 'rename_column', old_name: 'name', new_name: 'full_name' },
+    { action: 'rename_table', new_table_name: 'members' },
+  ],
+});
+console.log(result.table_name, result.statements);
+
+// A single operation is also accepted; dropping a column removes its data.
+await client.schema.alterTable('myapp', 'members', {
+  action: 'drop_column',
+  column_name: 'role',
+});
+```
+
+The four actions are `add_column`, `drop_column`, `rename_column`, and `rename_table`. Batches run in order in one server transaction; later operations use the renamed table, and an execution failure rolls back the batch. The response contains `message`, `db_name`, the final `table_name`, generated SQL `statements`, and simplified `schema` metadata. `schema` can be `null` if metadata inspection fails after the transaction has committed; that does not mean the alteration failed. Use `listTables()` for PRAGMA column metadata.
+
+Added columns use `AlterColumnDefinition`, including optional `foreign_key`, `not_null`, and `default_value`. Defaults are SQLite expression strings: use `'0'` for a number and `"'member'"` for a text literal. A `null` or empty default is omitted. Required columns need a non-empty default, and SQLite applies its own restrictions to added columns and foreign keys. The server prevents alterations to the reserved `id` and `created_at` columns.
+
+Take an export before destructive changes. Column type changes are not supported by this endpoint. Validation failures preserve `BadRequestError`; SQLite execution failures currently return `ServerError`. Writes are never retried automatically.
 
 ## Record operations
 
@@ -351,17 +381,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                                     |
-| ----------- | ------------------------------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                          |
-| `databases` | `create`, `list`, `get` (unreleased), `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`                           |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                 |
-| `sql`       | `execute`                                                                                   |
-| `analytics` | `get`                                                                                       |
-| `diagrams`  | `get`                                                                                       |
-| `exports`   | `sql`, `sqlite`                                                                             |
-| `objects`   | `get`                                                                                       |
+| Module      | Methods                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                           |
+| `databases` | `create`, `list`, `get` (unreleased), `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`  |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable` (unreleased) |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                  |
+| `sql`       | `execute`                                                                                    |
+| `analytics` | `get`                                                                                        |
+| `diagrams`  | `get`                                                                                        |
+| `exports`   | `sql`, `sqlite`                                                                              |
+| `objects`   | `get`                                                                                        |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 

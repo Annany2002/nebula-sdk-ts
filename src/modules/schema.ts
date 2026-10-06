@@ -5,8 +5,11 @@ import {
   SchemaInfoResponse,
   SchemaCreateResponse,
   TableListResponse,
+  AlterTablePayload,
+  AlterTableResponse,
 } from '../types';
 import { ModuleContext } from './_common';
+import { NebulaError } from '../errors';
 
 export class SchemaModule {
   private context: ModuleContext;
@@ -85,6 +88,46 @@ export class SchemaModule {
     if (!tableName) throw new Error('Table name is required.');
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/schema`;
     return makeRequest<SchemaInfoResponse>(path, 'GET', this.getRequestContext());
+  }
+
+  /**
+   * Alter a table using a JWT or database-scoped API key. Batches run in order in a
+   * server transaction; dropping columns removes their data. Failed writes are never retried.
+   */
+  async alterTable(
+    dbName: string,
+    tableName: string,
+    payload: AlterTablePayload
+  ): Promise<AlterTableResponse> {
+    if (typeof dbName !== 'string' || !dbName.trim())
+      throw new NebulaError('Database name is required.');
+    if (typeof tableName !== 'string' || !tableName.trim())
+      throw new NebulaError('Table name is required.');
+    if (!payload || typeof payload !== 'object')
+      throw new NebulaError('An alteration operation is required.');
+    const operations =
+      'operations' in payload && Array.isArray(payload.operations) && payload.operations.length > 0
+        ? payload.operations
+        : 'action' in payload
+          ? [payload]
+          : [];
+    if (
+      operations.length === 0 ||
+      operations.some(
+        (operation) =>
+          !operation ||
+          !['add_column', 'drop_column', 'rename_column', 'rename_table'].includes(operation.action)
+      )
+    ) {
+      throw new NebulaError('At least one supported alteration operation is required.');
+    }
+    return makeRequest<AlterTableResponse>(
+      `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/alter`,
+      'POST',
+      this.getRequestContext(),
+      undefined,
+      payload
+    );
   }
 
   /**

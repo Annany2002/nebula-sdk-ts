@@ -50,6 +50,7 @@ const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.databases.get, 'function');
+assert.equal(typeof client.schema.alterTable, 'function');
 assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
 assert.equal(typeof client.diagrams.get, 'function');
@@ -63,7 +64,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -93,6 +94,20 @@ async function checkContracts() {
   const oldId: number = unknownRow.id;
   const table: SchemaCreateResponse = await client.schema.define('app', { table_name: 'items', schema: [{ name: 'label', type: 'TEXT' }] });
   const schema: SchemaInfoResponse = await client.schema.getSchema('app', table.table_name);
+  const addedColumn: AlterColumnDefinition = { name: 'stock', type: 'INTEGER', not_null: true, default_value: '0' };
+  const operation: AlterTableOperation = { action: 'add_column', column: addedColumn };
+  const batch: AlterTablePayload = { operations: [operation, { action: 'rename_table', new_table_name: 'inventory' }] };
+  const alteration: AlterTableResponse = await client.schema.alterTable('app', 'items', batch);
+  const finalTable: string = alteration.table_name;
+  const statements: string[] = alteration.statements;
+  const alteredPrimary: boolean | undefined = alteration.schema?.[0].pk;
+  // @ts-expect-error Default values are SQL expression strings, not numeric JavaScript values.
+  const numericDefault: AlterColumnDefinition = { name: 'stock', type: 'INTEGER', default_value: 0 };
+  // @ts-expect-error Rename operations require both column names.
+  const missingRename: AlterTableOperation = { action: 'rename_column', new_name: 'label' };
+  // @ts-expect-error The endpoint does not support changing column types.
+  const unsupportedAlteration: AlterTableOperation = { action: 'modify_column', column: addedColumn };
+  void [finalTable, statements, alteredPrimary, numericDefault, missingRename, unsupportedAlteration];
   const primary: boolean = schema.schema[0].pk;
   const tables: TableListResponse = await client.schema.listTables('app');
   const sqlitePrimary: number = tables.tables[0].columns[0].pk;
