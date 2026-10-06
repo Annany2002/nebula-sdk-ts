@@ -55,6 +55,8 @@ assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
 assert.equal(typeof client.diagrams.get, 'function');
 assert.equal(typeof client.objects.get, 'function');
+assert.equal(typeof client.objects.createIndex, 'function');
+assert.equal(typeof client.objects.dropIndex, 'function');
 assert.equal(typeof client.exports.sql, 'function');
 assert.equal(typeof client.exports.sqlite, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
@@ -64,7 +66,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, CreateIndexPayload, CreateIndexResponse, DropIndexResponse, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -172,8 +174,15 @@ async function checkContracts() {
   const target: string = trigger.tableName;
   // @ts-expect-error Object inspection does not include table metadata.
   const objectTables = objects.tables;
-  // @ts-expect-error The objects endpoint does not offer creation methods.
+  const indexPayload: CreateIndexPayload = { name: 'lookup', table_name: 'items', columns: ['label'], unique: true };
+  const creation: CreateIndexResponse = await client.objects.createIndex('app', indexPayload);
+  const droppedIndex: DropIndexResponse = await client.objects.dropIndex('app', creation.index.name);
+  const droppedName: string = droppedIndex.index_name;
+  // @ts-expect-error Index creation requires a target table and ordered columns.
   await client.objects.createIndex('app', { name: 'lookup' });
+  // @ts-expect-error Uniqueness is a boolean, not a string.
+  const invalidUnique: CreateIndexPayload = { ...indexPayload, unique: 'true' };
+  void [creation, droppedName, invalidUnique];
   void [unique, indexSQL, target, objectTables];
   const dump: SQLExport = await client.exports.sql('app');
   const snapshot: SQLiteExport = await client.exports.sqlite('app');
