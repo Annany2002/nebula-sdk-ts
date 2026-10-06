@@ -1,7 +1,12 @@
 // src/modules/schema.ts
 import { makeRequest } from '../http';
-import { SchemaPayload, SchemaInfoResponse, TableListResponse } from '../types';
-import { ModuleContext } from './_common'; // Assuming ModuleContext is defined/shared
+import {
+  SchemaPayload,
+  SchemaInfoResponse,
+  SchemaCreateResponse,
+  TableListResponse,
+} from '../types';
+import { ModuleContext } from './_common';
 
 export class SchemaModule {
   private context: ModuleContext;
@@ -19,23 +24,29 @@ export class SchemaModule {
 
   /**
    * Defines a table schema within a specified database.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database where the table will be created.
    * @param payload - Object containing the table name and column definitions.
-   * @returns Information about the created table schema.
+   * @returns A creation acknowledgement; an existing table is left unchanged.
    * @throws {BadRequestError} If the payload is invalid (e.g., bad types, missing fields).
    * @throws {NotFoundError} If the database `dbName` doesn't exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} If the table name already exists or for other errors.
    */
-  async define(dbName: string, payload: SchemaPayload): Promise<SchemaInfoResponse> {
+  async define(dbName: string, payload: SchemaPayload): Promise<SchemaCreateResponse> {
     if (!dbName) throw new Error('Database name is required.');
-    if (!payload || !payload.table_name || !payload.columns || payload.columns.length === 0) {
+    if (
+      !payload ||
+      !payload.table_name ||
+      !(
+        (Array.isArray(payload.columns) && payload.columns.length > 0) ||
+        (Array.isArray(payload.schema) && payload.schema.length > 0)
+      )
+    ) {
       throw new Error('Table name and at least one column definition are required.');
-      // Add more specific validation for column definitions if desired
     }
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/schema`;
-    return makeRequest<SchemaInfoResponse>(
+    return makeRequest<SchemaCreateResponse>(
       path,
       'POST',
       this.getRequestContext(),
@@ -45,10 +56,10 @@ export class SchemaModule {
   }
 
   /**
-   * Lists the names of tables within a specified database.
-   * Requires a valid token to be set on the client.
+   * Lists tables and their SQLite metadata within a specified database.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database to query.
-   * @returns An object containing a list of table names.
+   * @returns Table metadata including row counts and PRAGMA column information.
    * @throws {NotFoundError} If the database `dbName` doesn't exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
@@ -61,7 +72,7 @@ export class SchemaModule {
 
   /**
    * Retrieves the schema for a specific table within a database.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table to get the schema for.
    * @returns The schema information for the table.
@@ -79,22 +90,29 @@ export class SchemaModule {
   /**
    * Creates a new table within a specified database.
    * Uses the /tables endpoint (alternative to define which uses /schema).
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database where the table will be created.
    * @param payload - Object containing the table name and column definitions.
-   * @returns Information about the created table.
+   * @returns A creation acknowledgement; an existing table is left unchanged.
    * @throws {BadRequestError} If the payload is invalid (e.g., bad types, missing fields).
    * @throws {NotFoundError} If the database `dbName` doesn't exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} If the table name already exists or for other errors.
    */
-  async createTable(dbName: string, payload: SchemaPayload): Promise<SchemaInfoResponse> {
+  async createTable(dbName: string, payload: SchemaPayload): Promise<SchemaCreateResponse> {
     if (!dbName) throw new Error('Database name is required.');
-    if (!payload || !payload.table_name || !payload.columns || payload.columns.length === 0) {
+    if (
+      !payload ||
+      !payload.table_name ||
+      !(
+        (Array.isArray(payload.columns) && payload.columns.length > 0) ||
+        (Array.isArray(payload.schema) && payload.schema.length > 0)
+      )
+    ) {
       throw new Error('Table name and at least one column definition are required.');
     }
     const path = `api/v1/databases/${encodeURIComponent(dbName)}/tables`;
-    return makeRequest<SchemaInfoResponse>(
+    return makeRequest<SchemaCreateResponse>(
       path,
       'POST',
       this.getRequestContext(),
@@ -105,7 +123,7 @@ export class SchemaModule {
 
   /**
    * Deletes (drops) a table within a specified database.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table to delete.
    * @returns A promise that resolves when deletion is successful (API returns 204 No Content).

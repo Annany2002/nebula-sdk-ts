@@ -8,6 +8,7 @@ import {
   LoginCredentials,
   UpdateProfilePayload,
   UserProfileResponse,
+  ProtectedHealthResponse,
 } from '../types';
 import { ModuleContext } from './_common';
 
@@ -29,7 +30,7 @@ export class AuthModule {
   /**
    * Registers a new user account.
    * @param credentials - User email, username and password.
-   * @returns A promise that resolves upon successful signup (response body depends on API).
+   * @returns The new user ID and a success message.
    * @throws {BadRequestError} If email/password format is invalid or email is taken.
    * @throws {ApiError} For other API-related errors.
    * @throws {NetworkError} If the request fails to send.
@@ -66,11 +67,11 @@ export class AuthModule {
   /**
    * Health route to check health of the protected routes
    * Accepts a JWT session or database API key
-   * @returns A void Promise
+   * @returns The authentication scheme or JWT user ID.
    */
 
-  async healthP(): Promise<void> {
-    return makeRequest('api/v1/health', 'GET', this.getRequestContext());
+  async healthP(): Promise<ProtectedHealthResponse> {
+    return makeRequest<ProtectedHealthResponse>('api/v1/health', 'GET', this.getRequestContext());
   }
 
   /**

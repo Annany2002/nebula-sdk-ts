@@ -1,33 +1,39 @@
-// src/types/record.ts
-
-/** Represents the data within a single record (flexible key-value pairs) */
-export type RecordData = Record<string, any>; // Allows any structure
-
-/** Payload for creating a new record (simply the data itself) */
+/** Column values returned by the backend; no particular primary-key name is assumed. */
+export type RecordData = Record<string, unknown>;
 export type CreateRecordPayload = RecordData;
-
-/** Payload for updating an existing record (can be partial) */
 export type UpdateRecordPayload = Partial<RecordData>;
+export type RecordResponse = RecordData;
 
-/** Represents a record retrieved from the API, including its system-assigned ID */
-export interface RecordResponse extends RecordData {
-  /** The unique identifier for the record (assuming number from SQLite) */
-  id: number;
+/** Numeric or text primary-key value. Use strings for integers outside JS's safe range. */
+export type RecordId = string | number;
+
+/** Create and update return an acknowledgement, not a full row. */
+export interface RecordMutationResponse {
+  message: string;
+  record_id: RecordId;
 }
 
-/** Type for basic equality filtering parameters used in list operations */
+export interface RecordPagination {
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface RecordListResponse<T extends object = RecordResponse> {
+  records: T[];
+  pagination: RecordPagination;
+}
+
+/** Equality filters. Reserved list option names cannot be used as column filters. */
 export type FilterParams = Record<string, string | number | boolean>;
 
-/** Options for pagination, sorting, and field selection in list operations */
 export interface ListOptions {
-  /** Maximum number of records to return (1-1000, default: 100) */
+  /** Maximum number of records to return (1–1000, default: 100). */
   limit?: number;
-  /** Number of records to skip (default: 0) */
+  /** Number of records to skip (default: 0). */
   offset?: number;
-  /** Column name to sort by */
   sort?: string;
-  /** Sort direction: 'asc' or 'desc' (default: 'asc') */
   order?: 'asc' | 'desc';
-  /** Comma-separated list of column names to return */
+  /** Comma-separated column names; omitted fields will not be present in returned rows. */
   fields?: string;
 }

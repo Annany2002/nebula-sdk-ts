@@ -56,12 +56,44 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
 void client;
 void error;
+interface Item { item_key: string; label: string }
+async function checkContracts() {
+  const page: RecordListResponse<Item> = await client.records.list<Item>('app', 'items');
+  const label: string = page.records[0].label;
+  const total: number = page.pagination.total;
+  // @ts-expect-error Listing is a page, not an array.
+  const oldPage: Item[] = await client.records.list<Item>('app', 'items');
+  const created: RecordMutationResponse = await client.records.create('app', 'items', { label });
+  const key: string | number = created.record_id;
+  // @ts-expect-error Mutation acknowledgements are not complete records.
+  const oldRow: Item = await client.records.update('app', 'items', key, { label });
+  const row: Item = await client.records.get<Item>('app', 'items', 'text-key');
+  const unknownRow = await client.records.get('app', 'items', 0);
+  // @ts-expect-error No numeric id is assumed for arbitrary rows.
+  const oldId: number = unknownRow.id;
+  const table: SchemaCreateResponse = await client.schema.define('app', { table_name: 'items', schema: [{ name: 'label', type: 'TEXT' }] });
+  const schema: SchemaInfoResponse = await client.schema.getSchema('app', table.table_name);
+  const primary: boolean = schema.schema[0].pk;
+  const tables: TableListResponse = await client.schema.listTables('app');
+  const sqlitePrimary: number = tables.tables[0].columns[0].pk;
+  const metadata: ApiKeyMetadataResponse = await client.databases.getApiKey('app');
+  // @ts-expect-error Metadata does not expose the secret.
+  const oldKey: string = metadata.api_key;
+  const generated: ApiKeyResponse = await client.databases.createApiKey('app');
+  const signup: SignupResponse = await client.auth.signup({ username: 'builder', email: 'a@example.test', password: 'test-password' });
+  const user: User = await client.auth.getMe();
+  // @ts-expect-error Public user metadata does not expose passwords.
+  const password: string = user.password;
+  const health: ProtectedHealthResponse = await client.auth.healthP();
+  void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
+}
+void checkContracts;
 `
   );
   execFileSync(

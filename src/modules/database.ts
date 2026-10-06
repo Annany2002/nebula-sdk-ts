@@ -1,6 +1,12 @@
 // src/modules/database.ts
 import { makeRequest, RequestContext } from '../http';
-import { DbListResponse, DbCreatePayload, DbInfoResponse, ApiKeyResponse } from '../types';
+import {
+  DbListResponse,
+  DbCreatePayload,
+  DbInfoResponse,
+  ApiKeyResponse,
+  ApiKeyMetadataResponse,
+} from '../types';
 import { ModuleContext } from './_common';
 
 export class DatabaseModule {
@@ -75,18 +81,18 @@ export class DatabaseModule {
   // --- API Key Management ---
 
   /**
-   * Retrieves the API key for a specific database.
+   * Retrieves API key metadata for a specific database.
    * Requires a valid JWT token (not API key auth).
    * @param dbName - The name of the database.
-   * @returns The API key response.
+   * @returns The key prefix and creation timestamp, without the secret.
    * @throws {NotFoundError} If the database does not exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */
-  async getApiKey(dbName: string): Promise<ApiKeyResponse> {
+  async getApiKey(dbName: string): Promise<ApiKeyMetadataResponse> {
     if (!dbName) throw new Error('Database name is required.');
     const path = `api/v1/account/databases/${encodeURIComponent(dbName)}/apikey`;
-    return makeRequest<ApiKeyResponse>(path, 'GET', this.getRequestContext());
+    return makeRequest<ApiKeyMetadataResponse>(path, 'GET', this.getRequestContext());
   }
 
   /**

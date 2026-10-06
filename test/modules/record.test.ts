@@ -6,6 +6,9 @@ import {
   RecordResponse,
   FilterParams,
   ListOptions,
+  RecordListResponse,
+  RecordMutationResponse,
+  RecordId,
 } from '../../src/types';
 import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
@@ -18,6 +21,14 @@ describe('RecordModule', () => {
 
   const sampleData: CreateRecordPayload = { name: 'Test Item', value: 100, active: true };
   const sampleResponse: RecordResponse = { id: recordId, ...sampleData };
+  const mutation: RecordMutationResponse = {
+    message: 'Record created successfully',
+    record_id: recordId,
+  };
+  const page = (records: RecordResponse[]): RecordListResponse => ({
+    records,
+    pagination: { total: records.length, limit: 100, offset: 0 },
+  });
 
   beforeEach(() => {
     mockFetch.mockReset();
@@ -25,11 +36,11 @@ describe('RecordModule', () => {
 
   // --- Create ---
   describe('create', () => {
-    it('should POST record data and return created record', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(201, sampleResponse));
+    it('should POST record data and return a creation acknowledgement', async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(201, mutation));
 
       const result = await client.records.create(dbName, tableName, sampleData);
-      expect(result).toEqual(sampleResponse);
+      expect(result).toEqual(mutation);
       const req = getLastRequest(mockFetch);
       expect(req.url).toContain(`/databases/${dbName}/tables/${tableName}/records`);
       expect(req.method).toBe('POST');
@@ -60,27 +71,27 @@ describe('RecordModule', () => {
   // --- List ---
   describe('list', () => {
     it('should GET records without parameters', async () => {
-      const expected = [sampleResponse, { id: 124, name: 'Another', value: 200 }];
+      const expected = page([sampleResponse, { id: 124, name: 'Another', value: 200 }]);
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
       const result = await client.records.list(dbName, tableName);
       expect(result).toEqual(expected);
-      expect(result).toHaveLength(2);
+      expect(result.records).toHaveLength(2);
     });
 
     it('should GET records with filter params as query parameters', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, [sampleResponse]));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, page([sampleResponse])));
 
       const filters: FilterParams = { active: true, value: 100 };
       const result = await client.records.list(dbName, tableName, filters);
-      expect(result).toEqual([sampleResponse]);
+      expect(result).toEqual(page([sampleResponse]));
       const url = getLastRequest(mockFetch).url;
       expect(url).toContain('active=true');
       expect(url).toContain('value=100');
     });
 
     it('should append ListOptions -- pagination', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, page([])));
       const options: ListOptions = { limit: 10, offset: 20 };
       await client.records.list(dbName, tableName, undefined, options);
       const url = getLastRequest(mockFetch).url;
@@ -89,7 +100,7 @@ describe('RecordModule', () => {
     });
 
     it('should append ListOptions -- sorting', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, page([])));
       const options: ListOptions = { sort: 'name', order: 'desc' };
       await client.records.list(dbName, tableName, undefined, options);
       const url = getLastRequest(mockFetch).url;
@@ -98,7 +109,7 @@ describe('RecordModule', () => {
     });
 
     it('should append ListOptions -- field selection', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, []));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, page([])));
       const options: ListOptions = { fields: 'id,name' };
       await client.records.list(dbName, tableName, undefined, options);
       // "id,name" will be URL-encoded as "id%2Cname" by URLSearchParams
@@ -107,7 +118,7 @@ describe('RecordModule', () => {
     });
 
     it('should merge filters and ListOptions', async () => {
-      mockFetch.mockResolvedValueOnce(mockResponse(200, [sampleResponse]));
+      mockFetch.mockResolvedValueOnce(mockResponse(200, page([sampleResponse])));
       const filters: FilterParams = { active: true };
       const options: ListOptions = { limit: 5, sort: 'value' };
       await client.records.list(dbName, tableName, filters, options);
@@ -133,29 +144,53 @@ describe('RecordModule', () => {
       expect(getLastRequest(mockFetch).url).toContain(`/records/${recordId}`);
     });
 
+    it.each([undefined, null, false])(
+      'rejects missing or non-scalar IDs %s before fetch',
+      async (key) => {
+        await expect(
+          client.records.get(dbName, tableName, key as unknown as RecordId)
+        ).rejects.toThrow(
+          'Record ID must be a non-empty string or a finite, safely represented number.'
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      }
+    );
+
     it('should throw NotFoundError on 404', async () => {
       mockFetch.mockResolvedValueOnce(mockResponse(404, { error: 'Record not found' }));
       await expect(client.records.get(dbName, tableName, 999)).rejects.toThrow(NotFoundError);
     });
 
-    it('should throw validation error for invalid recordId', async () => {
-      await expect(client.records.get(dbName, tableName, 0)).rejects.toThrow(
-        'Record ID must be a positive integer.'
-      );
-      await expect(client.records.get(dbName, tableName, -1)).rejects.toThrow(
-        'Record ID must be a positive integer.'
-      );
-      await expect(client.records.get(dbName, tableName, 1.5)).rejects.toThrow(
-        'Record ID must be a positive integer.'
-      );
-    });
+    it.each([0, -1, 1.5, 'item one?#', '9223372036854775807'])(
+      'encodes supported key %s',
+      async (key) => {
+        mockFetch.mockResolvedValueOnce(mockResponse(200, { item_key: key }));
+        await client.records.get(dbName, tableName, key);
+        expect(getLastRequest(mockFetch).url).toContain(
+          `/records/${encodeURIComponent(String(key))}`
+        );
+      }
+    );
+
+    it.each(['', NaN, Infinity, -Infinity, Number.MAX_SAFE_INTEGER + 1])(
+      'rejects invalid key %s before fetch',
+      async (key) => {
+        await expect(client.records.get(dbName, tableName, key)).rejects.toThrow(
+          'Record ID must be a non-empty string or a finite, safely represented number.'
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      }
+    );
   });
 
   // --- Update ---
   describe('update', () => {
-    it('should PUT partial data and return updated record', async () => {
+    it('should PUT partial data and return an update acknowledgement', async () => {
       const update: UpdateRecordPayload = { active: false, value: 150 };
-      const expected = { ...sampleResponse, ...update };
+      const expected: RecordMutationResponse = {
+        message: 'Record updated successfully',
+        record_id: recordId,
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
       const result = await client.records.update(dbName, tableName, recordId, update);
@@ -202,8 +237,8 @@ describe('RecordModule', () => {
     });
 
     it('should throw validation error for invalid recordId', async () => {
-      await expect(client.records.delete(dbName, tableName, 0)).rejects.toThrow(
-        'Record ID must be a positive integer.'
+      await expect(client.records.delete(dbName, tableName, '')).rejects.toThrow(
+        'Record ID must be a non-empty string or a finite, safely represented number.'
       );
     });
   });

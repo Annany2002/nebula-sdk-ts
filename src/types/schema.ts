@@ -1,28 +1,57 @@
-// src/types/schema.ts
+export type ForeignKeyAction = 'CASCADE' | 'SET NULL' | 'SET DEFAULT' | 'RESTRICT' | 'NO ACTION';
 
-/** Definition of a single column in a table schema */
+export interface ForeignKeyDefinition {
+  target_table: string;
+  target_column: string;
+  on_delete?: ForeignKeyAction;
+  on_update?: ForeignKeyAction;
+}
+
+export interface ForeignKeyTableConstraint extends ForeignKeyDefinition {
+  column: string;
+}
+
 export interface ColumnDefinition {
   name: string;
-  /** Data type for the column (e.g., TEXT, INTEGER, REAL, BLOB, BOOLEAN, etc.) */
+  /** TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME or NUMERIC (case insensitive). */
   type: string;
-  // Add other constraints later if supported (e.g., primaryKey, unique, notNull, defaultValue)
-  // primaryKey?: boolean;
-  // unique?: boolean;
-  // notNull?: boolean;
-  // defaultValue?: string | number | boolean;
+  foreign_key?: ForeignKeyDefinition;
 }
 
-/** Payload for defining a table schema */
-export interface SchemaPayload {
+/** The backend accepts either columns or its legacy schema alias. */
+export type SchemaPayload = {
   table_name: string;
-  columns: ColumnDefinition[];
+  foreign_keys?: ForeignKeyTableConstraint[];
+} & (
+  | { columns: ColumnDefinition[]; schema?: ColumnDefinition[] }
+  | { schema: ColumnDefinition[]; columns?: ColumnDefinition[] }
+);
+
+export interface SchemaCreateResponse {
+  message: string;
+  db_name: string;
+  table_name: string;
 }
 
-/** Assumed response structure after defining a schema */
+/** Simplified CREATE TABLE metadata; constraint entries can also appear in this list. */
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  pk: boolean;
+}
+
 export interface SchemaInfoResponse {
-  table_name: string;
-  columns: ColumnDefinition[];
-  message?: string; // Example field
+  schema: SchemaColumn[];
+}
+
+/** SQLite PRAGMA table_info metadata returned by listTables, distinct from getSchema. */
+export interface TableColumnInfo {
+  cid: string;
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: string | null;
+  pk: number;
 }
 
 export interface TableListResponseType {
@@ -32,9 +61,10 @@ export interface TableListResponseType {
   rootpage: string;
   sql: string;
   createdAt: string;
-  columns: ColumnDefinition[];
+  rowCount: number;
+  columns: TableColumnInfo[];
 }
-/** Assumed response structure for listing tables in a database */
+
 export interface TableListResponse {
   tables: TableListResponseType[];
 }

@@ -22,24 +22,18 @@ export interface LoginResponse {
   user: User;
 }
 
-/**
- * Response from a successful signup request.
- * NOTE: The Nebula API README doesn't specify the signup response.
- * Assuming void or a simple success message for now. Adjust if needed.
- */
+/** Signup creates an account; log in separately to obtain a JWT. */
 export interface SignupResponse {
-  message?: string; // Example: Adjust based on actual API response
-  userId?: string; // Example: Adjust based on actual API response
-  // Or could be simply `void` if nothing is returned on success
+  message: string;
+  user_id: string;
 }
 
-/** Placeholder for user information - adjust if /api/v1/me returns more */
-export interface UserInfo {
-  userId: string;
-  username: string;
-  email: string;
-  createdAt: string;
-}
+export type UserInfo = User;
+
+/** Response differs between API-key and JWT authentication. */
+export type ProtectedHealthResponse =
+  | { authenticated_by: 'api_key'; status: 'ok' }
+  | { userId: string; dbId: null };
 
 /** Payload for updating user profile */
 export interface UpdateProfilePayload {

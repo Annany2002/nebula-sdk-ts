@@ -3,13 +3,12 @@
 /** Standard structure for API error responses from Nebula */
 export interface NebulaErrorResponse {
   error: string;
-  details?: string | Record<string, any>; // Reflecting potential variations
+  details?: string | Record<string, unknown>; // Reflecting potential variations
 }
 
 export interface User {
   createdAt: string;
   email: string;
-  password: string;
   userId: string;
   username: string;
 }

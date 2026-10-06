@@ -4,6 +4,9 @@ import {
   CreateRecordPayload,
   UpdateRecordPayload,
   RecordResponse,
+  RecordId,
+  RecordMutationResponse,
+  RecordListResponse,
   FilterParams,
   ListOptions,
 } from '../types';
@@ -23,28 +26,35 @@ export class RecordModule {
     };
   }
 
-  private buildRecordPath(dbName: string, tableName: string, recordId?: number): string {
+  private buildRecordPath(dbName: string, tableName: string): string {
     if (!dbName) throw new Error('Database name is required.');
     if (!tableName) throw new Error('Table name is required.');
+    return `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/records`;
+  }
 
-    let path = `api/v1/databases/${encodeURIComponent(dbName)}/tables/${encodeURIComponent(tableName)}/records`;
-    if (recordId !== undefined) {
-      // Basic validation for numeric ID
-      if (typeof recordId !== 'number' || !Number.isInteger(recordId) || recordId <= 0) {
-        throw new Error('Record ID must be a positive integer.');
-      }
-      path += `/${recordId}`;
+  private buildSingleRecordPath(dbName: string, tableName: string, recordId: RecordId): string {
+    const path = this.buildRecordPath(dbName, tableName);
+    if (
+      (typeof recordId !== 'string' && typeof recordId !== 'number') ||
+      (typeof recordId === 'string' && recordId.length === 0) ||
+      (typeof recordId === 'number' &&
+        (!Number.isFinite(recordId) ||
+          (Number.isInteger(recordId) && !Number.isSafeInteger(recordId))))
+    ) {
+      throw new Error(
+        'Record ID must be a non-empty string or a finite, safely represented number.'
+      );
     }
-    return path;
+    return `${path}/${encodeURIComponent(String(recordId))}`;
   }
 
   /**
    * Creates a new record in the specified table.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table where the record will be created.
    * @param payload - The data for the new record.
-   * @returns The newly created record, including its system-assigned ID.
+   * @returns A success message and the primary-key value.
    * @throws {BadRequestError} If the payload data doesn't match the table schema or is invalid.
    * @throws {NotFoundError} If the database or table name does not exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
@@ -54,12 +64,17 @@ export class RecordModule {
     dbName: string,
     tableName: string,
     payload: CreateRecordPayload
-  ): Promise<RecordResponse> {
-    if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+  ): Promise<RecordMutationResponse> {
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      Array.isArray(payload) ||
+      Object.keys(payload).length === 0
+    ) {
       throw new Error('Record data payload cannot be empty.');
     }
     const path = this.buildRecordPath(dbName, tableName);
-    return makeRequest<RecordResponse>(
+    return makeRequest<RecordMutationResponse>(
       path,
       'POST',
       this.getRequestContext(),
@@ -70,23 +85,23 @@ export class RecordModule {
 
   /**
    * Lists records in the specified table, optionally filtering by column values.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table to list records from.
    * @param filter - Optional object for basic equality filtering (e.g., { column: value }).
    * @param options - Optional pagination, sorting, and field selection options.
-   * @returns An array of record objects matching the criteria.
+   * @returns Matching rows and total/limit/offset pagination metadata.
    * @throws {NotFoundError} If the database or table name does not exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {BadRequestError} If filter parameters are invalid for the schema.
    * @throws {ApiError} For other API-related errors.
    */
-  async list(
+  async list<T extends object = RecordResponse>(
     dbName: string,
     tableName: string,
     filter?: FilterParams,
     options?: ListOptions
-  ): Promise<RecordResponse[]> {
+  ): Promise<RecordListResponse<T>> {
     const path = this.buildRecordPath(dbName, tableName);
     // Merge filter and options into a single query params object
     const queryParams: Record<string, string | number | boolean> = { ...filter };
@@ -97,7 +112,7 @@ export class RecordModule {
       if (options.order) queryParams.order = options.order;
       if (options.fields) queryParams.fields = options.fields;
     }
-    return makeRequest<RecordResponse[]>(
+    return makeRequest<RecordListResponse<T>>(
       path,
       'GET',
       this.getRequestContext(),
@@ -107,7 +122,7 @@ export class RecordModule {
 
   /**
    * Retrieves a single record by its ID.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table containing the record.
    * @param recordId - The unique ID of the record to retrieve.
@@ -116,19 +131,23 @@ export class RecordModule {
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */
-  async get(dbName: string, tableName: string, recordId: number): Promise<RecordResponse> {
-    const path = this.buildRecordPath(dbName, tableName, recordId);
-    return makeRequest<RecordResponse>(path, 'GET', this.getRequestContext());
+  async get<T extends object = RecordResponse>(
+    dbName: string,
+    tableName: string,
+    recordId: RecordId
+  ): Promise<T> {
+    const path = this.buildSingleRecordPath(dbName, tableName, recordId);
+    return makeRequest<T>(path, 'GET', this.getRequestContext());
   }
 
   /**
    * Updates an existing record by its ID.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table containing the record.
    * @param recordId - The unique ID of the record to update.
    * @param payload - An object containing the fields to update.
-   * @returns The full updated record object.
+   * @returns A success message and the primary-key value.
    * @throws {BadRequestError} If the payload data doesn't match the table schema or is invalid.
    * @throws {NotFoundError} If the database, table, or record ID does not exist.
    * @throws {AuthError} If the token is missing, invalid, or expired.
@@ -137,19 +156,30 @@ export class RecordModule {
   async update(
     dbName: string,
     tableName: string,
-    recordId: number,
+    recordId: RecordId,
     payload: UpdateRecordPayload
-  ): Promise<RecordResponse> {
-    if (!payload || typeof payload !== 'object' || Object.keys(payload).length === 0) {
+  ): Promise<RecordMutationResponse> {
+    if (
+      !payload ||
+      typeof payload !== 'object' ||
+      Array.isArray(payload) ||
+      Object.keys(payload).length === 0
+    ) {
       throw new Error('Update payload cannot be empty.');
     }
-    const path = this.buildRecordPath(dbName, tableName, recordId);
-    return makeRequest<RecordResponse>(path, 'PUT', this.getRequestContext(), undefined, payload);
+    const path = this.buildSingleRecordPath(dbName, tableName, recordId);
+    return makeRequest<RecordMutationResponse>(
+      path,
+      'PUT',
+      this.getRequestContext(),
+      undefined,
+      payload
+    );
   }
 
   /**
    * Deletes a record by its ID.
-   * Requires a valid token to be set on the client.
+   * Accepts a JWT session or database API key.
    * @param dbName - The name of the database containing the table.
    * @param tableName - The name of the table containing the record.
    * @param recordId - The unique ID of the record to delete.
@@ -158,8 +188,8 @@ export class RecordModule {
    * @throws {AuthError} If the token is missing, invalid, or expired.
    * @throws {ApiError} For other API-related errors.
    */
-  async delete(dbName: string, tableName: string, recordId: number): Promise<void> {
-    const path = this.buildRecordPath(dbName, tableName, recordId);
+  async delete(dbName: string, tableName: string, recordId: RecordId): Promise<void> {
+    const path = this.buildSingleRecordPath(dbName, tableName, recordId);
     await makeRequest<null>(path, 'DELETE', this.getRequestContext());
     // Success if no error thrown
   }

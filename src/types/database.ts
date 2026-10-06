@@ -8,7 +8,7 @@ export type DbListRType = {
   filePath: string;
   createdAt: string;
   tables: number;
-  apiKey: string;
+  apiKeyPrefix?: string;
 };
 
 /** Response structure for listing databases */
@@ -31,4 +31,10 @@ export interface DbInfoResponse {
 export interface ApiKeyResponse {
   api_key: string;
   message?: string;
+}
+
+/** GET returns credential metadata. Only createApiKey returns the full secret. */
+export interface ApiKeyMetadataResponse {
+  key_prefix: string;
+  created_at: string;
 }

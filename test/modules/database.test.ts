@@ -1,6 +1,12 @@
 // test/modules/database.test.ts
 import { createTestClient, mockResponse, getLastRequest } from '../test-helpers';
-import { DbCreatePayload, DbInfoResponse, ApiKeyResponse } from '../../src/types';
+import {
+  DbCreatePayload,
+  DbInfoResponse,
+  ApiKeyResponse,
+  ApiKeyMetadataResponse,
+  DbListResponse,
+} from '../../src/types';
 import { AuthError, BadRequestError, NotFoundError } from '../../src/errors';
 
 const { client, mockFetch } = createTestClient();
@@ -49,16 +55,16 @@ describe('DatabaseModule', () => {
   // --- List ---
   describe('list', () => {
     it('should GET database list', async () => {
-      const expected = {
+      const expected: DbListResponse = {
         databases: [
           {
-            id: 1,
+            databaseId: 1,
             userId: 'u1',
             dbName: 'db1',
             filePath: '/data/db1',
             createdAt: '2026-01-01',
-            tableCount: 2,
-            apiKey: 'neb_key1',
+            tables: 2,
+            apiKeyPrefix: 'neb_live_1234',
           },
         ],
       };
@@ -106,8 +112,11 @@ describe('DatabaseModule', () => {
 
   // --- API Key Management ---
   describe('getApiKey', () => {
-    it('should GET the api key for a database', async () => {
-      const expected: ApiKeyResponse = { api_key: 'neb_abc123' };
+    it('should GET API key metadata for a database', async () => {
+      const expected: ApiKeyMetadataResponse = {
+        key_prefix: 'neb_live_abc123',
+        created_at: '2026-01-01T00:00:00Z',
+      };
       mockFetch.mockResolvedValueOnce(mockResponse(200, expected));
 
       const result = await client.databases.getApiKey('mydb');

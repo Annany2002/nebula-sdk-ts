@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Fixed
+
+- Align record list declarations with `{ records, pagination }` and separate create/update acknowledgements from full rows.
+- Support text and numeric primary keys, encode ID path segments, and reject empty or unsafe numeric IDs before sending a request.
+- Separate schema creation and read responses; expose table row counts and PRAGMA column metadata.
+- Separate API-key metadata from one-time creation responses and remove the full key requirement from database listings.
+- Correct signup's `user_id`, remove the password field from public user metadata, and type protected health responses.
+
+### Added
+
+- Add optional row generics for record reads, column/table foreign-key types, and support for the backend's legacy `schema` payload alias.
+- Verify existing SDK contracts against isolated backend servers and pin CI to backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
+- Document migration from the incorrect 0.2.0 declarations. These changes are not yet published.
+
 ## 0.2.0 - 2026-10-04
 
 ### Changed
