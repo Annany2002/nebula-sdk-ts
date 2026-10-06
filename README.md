@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below describe the unreleased source changes. npm version 0.2.0 still has the older declarations. The integration checks target backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
+The contracts below apply to SDK 0.3.0. Version 0.2.0 has the older declarations; see the migration guide below. The integration checks target backend revision `4bb9912bdc37ec8c199db1298fd77f9dc3f598ba`.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
