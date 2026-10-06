@@ -52,6 +52,7 @@ assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
 assert.equal(typeof client.diagrams.get, 'function');
+assert.equal(typeof client.objects.get, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
 `
   );
@@ -59,7 +60,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -138,6 +139,17 @@ async function checkContracts() {
   // @ts-expect-error Relationships are table-level foreignKeys, not a relations array.
   const relations = diagram.relations;
   void [action, columnId, defaultSQL, foreignKeyCount, booleanPrimary, relations];
+  const objects: DatabaseObjects = await client.objects.get('app');
+  const index: IndexInfo = objects.indexes[0];
+  const trigger: TriggerInfo = objects.triggers[0];
+  const unique: boolean = index.unique;
+  const indexSQL: string = index.sql;
+  const target: string = trigger.tableName;
+  // @ts-expect-error Object inspection does not include table metadata.
+  const objectTables = objects.tables;
+  // @ts-expect-error The objects endpoint does not offer creation methods.
+  await client.objects.createIndex('app', { name: 'lookup' });
+  void [unique, indexSQL, target, objectTables];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }
 void checkContracts;
