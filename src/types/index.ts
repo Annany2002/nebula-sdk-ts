@@ -9,3 +9,4 @@ export * from './sql';
 export * from './analytics';
 export * from './diagram';
 export * from './objects';
+export * from './export';
