@@ -103,11 +103,11 @@ The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older de
 
 The backend adds `id` and `created_at` when creating tables through the schema endpoints. Do not supply those columns. User-defined column types are TEXT, INTEGER, REAL, BLOB, BOOLEAN, DATETIME, and NUMERIC (case insensitive). Schema requests accept `columns` or the legacy `schema` alias; non-empty `columns` takes precedence. Existing tables are left unchanged.
 
-Database details and schema alteration are available in the current source; they are not included in the published 0.5.0 package yet.
+Database details and schema alteration are available in SDK 0.6.0 and later.
 
-## Database details (unreleased)
+## Database details
 
-`databases.get()` is available in the current source and is not included in the published 0.5.0 package yet.
+`databases.get()` is available in SDK 0.6.0 and later.
 
 ```typescript
 const { database } = await client.databases.get('myapp');
@@ -169,9 +169,9 @@ await client.schema.createTable('myapp', {
 
 Use `foreign_keys` for table-level constraints with `column`, `target_table`, `target_column`, and optional `on_delete`/`on_update`. Supported actions are `CASCADE`, `SET NULL`, `SET DEFAULT`, `RESTRICT`, and `NO ACTION`. The simplified `getSchema()` reader may include constraint entries; use the column metadata from `listTables()` for reliable column inspection.
 
-## Schema alteration (unreleased)
+## Schema alteration
 
-Use `schema.alterTable()` with a single `AlterTableOperation` or an ordered batch of operations. Both an owner JWT and a database-scoped API key are accepted.
+`schema.alterTable()` is available in SDK 0.6.0 and later. Use a single `AlterTableOperation` or an ordered batch of operations. Both an owner JWT and a database-scoped API key are accepted.
 
 ```typescript
 const result = await client.schema.alterTable('myapp', 'customers', {
@@ -381,17 +381,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                                      |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                           |
-| `databases` | `create`, `list`, `get` (unreleased), `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`  |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable` (unreleased) |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                  |
-| `sql`       | `execute`                                                                                    |
-| `analytics` | `get`                                                                                        |
-| `diagrams`  | `get`                                                                                        |
-| `exports`   | `sql`, `sqlite`                                                                              |
-| `objects`   | `get`                                                                                        |
+| Module      | Methods                                                                         |
+| ----------- | ------------------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`              |
+| `databases` | `create`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`  |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable` |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                     |
+| `sql`       | `execute`                                                                       |
+| `analytics` | `get`                                                                           |
+| `diagrams`  | `get`                                                                           |
+| `exports`   | `sql`, `sqlite`                                                                 |
+| `objects`   | `get`                                                                           |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
