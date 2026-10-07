@@ -79,6 +79,7 @@ try {
     'diagram',
     'objects',
     'indexes',
+    'triggers',
     'exports',
     'details',
     'alter',

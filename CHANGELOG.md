@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Create and drop table triggers with `client.objects.createTrigger()` and `client.objects.dropTrigger()`, using owner JWTs or scoped API keys.
+- Export trigger event/timing unions and typed creation payloads, canonical metadata, and deletion acknowledgements. Support BEFORE/AFTER events, optional conditions, and UPDATE OF columns.
+- Validate input shapes and SQL text byte limits; preserve SQL text and use existing error/authentication handling without write retries.
+- Verify real trigger execution, validation rollback, tenant isolation, preserved records after deletion, and packed JavaScript/TypeScript consumers.
+
+### Changed
+
+- Pin backend integration checks to trigger-management revision `264e53b2e72f4a4718f8a50d418ec14c525216f3`.
+
+Native trigger methods are not yet published and require this backend revision or later.
+
 ## 0.7.0 - 2026-10-06
 
 ### Added

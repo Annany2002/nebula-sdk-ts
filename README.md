@@ -335,7 +335,7 @@ for (const trigger of objects.triggers) {
 
 Use the database owner's JWT or an API key scoped to that database. `DatabaseObjects` contains `IndexInfo[]` and `TriggerInfo[]`. Empty collections are arrays. Indexes include their name, table name, uniqueness flag, and original creation SQL. Triggers include their name, target table or view name, and original creation SQL.
 
-The catalog endpoint is read-only. Native column-index creation and deletion are available in SDK 0.7.0 and later (see below). Use `client.sql.execute()` for expression or partial indexes and for creating or dropping triggers; those changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
+The catalog endpoint is read-only. Native column-index creation and deletion are available in SDK 0.7.0 and later (see below). Use `client.sql.execute()` for expression or partial indexes. Published SDK 0.7.0 manages triggers through SQL; the unreleased source adds native trigger methods below. Schema changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
 
 The SDK preserves server metadata and uses existing error classes for database, authentication, rate-limit, and server failures. Requests are not retried automatically.
 
@@ -365,6 +365,42 @@ console.log(droppedIndex.index_name);
 `dropIndex()` returns `DropIndexResponse` with `message`, `db_name`, and the canonical `index_name`. Legacy quoted custom-index names are accepted. Table records remain intact; dropping a unique index removes the constraint it enforces. Automatic indexes, internal tables, virtual tables, and their shadow tables are protected (`BadRequestError`); a missing or previously dropped index produces `NotFoundError`.
 
 Both methods accept owner JWTs or database-scoped API keys and use the existing error classes. Writes are not retried automatically. If a response is lost, refresh the catalog before repeating a mutation; no idempotency key is provided.
+
+### Create and drop triggers (unreleased)
+
+These methods are available in the current source and are not included in published SDK 0.7.0. They require backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI pins this merged revision; publish the next minor SDK release after merging and completing release checks.
+
+```typescript
+const createdTrigger = await client.objects.createTrigger('myapp', {
+  name: 'audit_email_changes',
+  table_name: 'users',
+  event: 'UPDATE',
+  timing: 'AFTER',
+  update_of: ['email'],
+  when: 'NEW.email IS NOT OLD.email',
+  body: 'INSERT INTO email_audit (user_id, old_email, new_email) VALUES (NEW.id, OLD.email, NEW.email);',
+});
+console.log(
+  createdTrigger.trigger.name,
+  createdTrigger.trigger.tableName,
+  createdTrigger.trigger.sql
+);
+
+const droppedTrigger = await client.objects.dropTrigger('myapp', createdTrigger.trigger.name);
+console.log(droppedTrigger.trigger_name);
+```
+
+The example assumes `users` and `email_audit` already exist. `CreateTriggerPayload` requires `name`, `table_name`, `event` (`INSERT`, `UPDATE`, or `DELETE`), and `body`. Optional `timing` is `BEFORE` or `AFTER` (default `AFTER`). `update_of` selects up to 64 distinct existing writable columns and applies only to `UPDATE`; omitted or empty means any column. An optional `when` SQL condition controls whether the trigger runs. Use SQLite's event-appropriate `NEW` and `OLD` references.
+
+Names use one to 64 ASCII letters, digits, or underscores; `sqlite_` and `_nebula_` prefixes are reserved. Native creation supports ordinary user tables, including quoted table/column names. View triggers (`INSTEAD OF`) still use `client.sql.execute()`.
+
+`body` contains semicolon-terminated SQL statements inside the trigger. Omit the `CREATE TRIGGER`, `BEGIN`, and final `END` wrapper. SQL text is preserved. The body is limited to 64 KiB and the condition to 8 KiB of UTF-8 text, without NUL; the server also limits the complete JSON request to 128 KiB, including escaping. The SDK validates input shapes, event/timing choices, and SQL text byte limits before fetching. The server validates names, targets, columns, SQL, and references transactionally, without executing actions during creation. Runtime data errors, recursion, and later schema changes can still make a trigger fail when it runs.
+
+`createTrigger()` returns `CreateTriggerResponse` with `message`, `db_name`, and canonical `TriggerInfo` metadata. Conflicting schema-object names produce `ConflictError`; missing tables produce `NotFoundError`; unsupported targets, invalid SQL/references, and protected objects produce `BadRequestError`. A failed creation leaves no partial definition.
+
+`dropTrigger()` returns `DropTriggerResponse` with `message`, `db_name`, and the stored canonical `trigger_name`. Legacy quoted custom triggers on tables or views are supported. Protected targets remain unavailable. Deletion stops future trigger actions and preserves records and earlier effects. Missing or previously dropped triggers produce `NotFoundError`.
+
+Both methods accept owner JWTs or database-scoped API keys and use existing SDK error classes. Writes are not retried. If a response is lost, refresh `client.objects.get()` before deciding whether to repeat the mutation; there is no idempotency key.
 
 ## Database exports
 
@@ -464,7 +500,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, export, database detail, and schema alteration integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, and schema alteration integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 ### Pull request checks
 

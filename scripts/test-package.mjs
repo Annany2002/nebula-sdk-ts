@@ -57,6 +57,8 @@ assert.equal(typeof client.diagrams.get, 'function');
 assert.equal(typeof client.objects.get, 'function');
 assert.equal(typeof client.objects.createIndex, 'function');
 assert.equal(typeof client.objects.dropIndex, 'function');
+assert.equal(typeof client.objects.createTrigger, 'function');
+assert.equal(typeof client.objects.dropTrigger, 'function');
 assert.equal(typeof client.exports.sql, 'function');
 assert.equal(typeof client.exports.sqlite, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
@@ -66,7 +68,7 @@ assert(new ConflictError('duplicate') instanceof ApiError);
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, CreateIndexPayload, CreateIndexResponse, DropIndexResponse, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
+    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, CreateIndexPayload, CreateIndexResponse, DropIndexResponse, TriggerEvent, TriggerTiming, CreateTriggerPayload, CreateTriggerResponse, DropTriggerResponse, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
@@ -183,6 +185,22 @@ async function checkContracts() {
   // @ts-expect-error Uniqueness is a boolean, not a string.
   const invalidUnique: CreateIndexPayload = { ...indexPayload, unique: 'true' };
   void [creation, droppedName, invalidUnique];
+  const event: TriggerEvent = 'UPDATE';
+  const timing: TriggerTiming = 'AFTER';
+  const triggerPayload: CreateTriggerPayload = { name: 'audit_changes', table_name: 'items', event, timing, update_of: ['label'], when: 'NEW.label <> OLD.label', body: 'SELECT NEW.label;' };
+  const triggerCreation: CreateTriggerResponse = await client.objects.createTrigger('app', triggerPayload);
+  const triggerMetadata: TriggerInfo = triggerCreation.trigger;
+  const triggerDrop: DropTriggerResponse = await client.objects.dropTrigger('app', triggerMetadata.name);
+  const triggerName: string = triggerDrop.trigger_name;
+  // @ts-expect-error Trigger creation requires an event and SQL body.
+  await client.objects.createTrigger('app', { name: 'audit_changes', table_name: 'items' });
+  // @ts-expect-error Native creation does not accept INSTEAD OF view triggers.
+  const invalidTiming: CreateTriggerPayload = { ...triggerPayload, timing: 'INSTEAD OF' };
+  // @ts-expect-error UPSERT is not a trigger event.
+  const invalidEvent: TriggerEvent = 'UPSERT';
+  // @ts-expect-error UPDATE OF accepts an array of column names.
+  const invalidColumns: CreateTriggerPayload = { ...triggerPayload, update_of: 'label' };
+  void [triggerMetadata, triggerName, invalidTiming, invalidEvent, invalidColumns];
   void [unique, indexSQL, target, objectTables];
   const dump: SQLExport = await client.exports.sql('app');
   const snapshot: SQLiteExport = await client.exports.sqlite('app');
