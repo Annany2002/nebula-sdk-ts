@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-10-07
 
 ### Added
 
@@ -13,7 +13,7 @@
 
 - Pin backend integration checks to trigger-management revision `264e53b2e72f4a4718f8a50d418ec14c525216f3`.
 
-Native trigger methods are not yet published and require this backend revision or later.
+Native trigger methods require this backend revision or later.
 
 ## 0.7.0 - 2026-10-06
 

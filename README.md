@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `3b7115917fc5876c1ee0e9add7a5cb902eadf142`.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -335,7 +335,7 @@ for (const trigger of objects.triggers) {
 
 Use the database owner's JWT or an API key scoped to that database. `DatabaseObjects` contains `IndexInfo[]` and `TriggerInfo[]`. Empty collections are arrays. Indexes include their name, table name, uniqueness flag, and original creation SQL. Triggers include their name, target table or view name, and original creation SQL.
 
-The catalog endpoint is read-only. Native column-index creation and deletion are available in SDK 0.7.0 and later (see below). Use `client.sql.execute()` for expression or partial indexes. Published SDK 0.7.0 manages triggers through SQL; the unreleased source adds native trigger methods below. Schema changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
+The catalog endpoint is read-only. Native column-index creation and deletion are available in SDK 0.7.0 and later (see below). Use `client.sql.execute()` for expression or partial indexes. Native trigger management is available in SDK 0.8.0 and later (see below); view-trigger creation continues to use SQL. Schema changes take effect immediately. Triggers execute through SQLite when their defined events occur. Tables, views, and SQLite automatic indexes (including indexes for `PRIMARY KEY` and `UNIQUE` constraints) are not included in this catalog. Results are ordered by target name and then object name.
 
 The SDK preserves server metadata and uses existing error classes for database, authentication, rate-limit, and server failures. Requests are not retried automatically.
 
@@ -366,9 +366,9 @@ console.log(droppedIndex.index_name);
 
 Both methods accept owner JWTs or database-scoped API keys and use the existing error classes. Writes are not retried automatically. If a response is lost, refresh the catalog before repeating a mutation; no idempotency key is provided.
 
-### Create and drop triggers (unreleased)
+### Create and drop triggers
 
-These methods are available in the current source and are not included in published SDK 0.7.0. They require backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI pins this merged revision; publish the next minor SDK release after merging and completing release checks.
+Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin this revision.
 
 ```typescript
 const createdTrigger = await client.objects.createTrigger('myapp', {
