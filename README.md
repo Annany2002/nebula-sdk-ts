@@ -368,7 +368,7 @@ Both methods accept owner JWTs or database-scoped API keys and use the existing 
 
 ### Create and drop triggers
 
-Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin this revision.
+Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin the newer SQLite import revision listed above.
 
 ```typescript
 const createdTrigger = await client.objects.createTrigger('myapp', {
@@ -426,7 +426,7 @@ Database, authentication, rate-limit, server, and network failures use the exist
 
 ## SQLite import
 
-This method is part of the unreleased SDK changes and requires the backend's `POST /api/v1/databases/import/sqlite` endpoint. SDK 0.8.0 does not include it.
+SQLite import is available in SDK 0.9.0 and later and requires backend revision `a21cd7d3ba5670b475cb2a7ac9443fca20c64a59` or later, which provides `POST /api/v1/databases/import/sqlite`.
 
 ```typescript
 import { readFile } from 'node:fs/promises';
@@ -470,17 +470,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                                                     |
-| ----------- | ----------------------------------------------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                          |
-| `databases` | `create`, `importSQLite` (unreleased), `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                             |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                                 |
-| `sql`       | `execute`                                                                                                   |
-| `analytics` | `get`                                                                                                       |
-| `diagrams`  | `get`                                                                                                       |
-| `exports`   | `sql`, `sqlite`                                                                                             |
-| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                           |
+| Module      | Methods                                                                                        |
+| ----------- | ---------------------------------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                             |
+| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                    |
+| `sql`       | `execute`                                                                                      |
+| `analytics` | `get`                                                                                          |
+| `diagrams`  | `get`                                                                                          |
+| `exports`   | `sql`, `sqlite`                                                                                |
+| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                              |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
