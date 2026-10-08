@@ -10,7 +10,7 @@ The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides th
 npm install nebula-sdk-ts
 ```
 
-Requires Node.js 24 or later, or an environment with Fetch and AbortController. TypeScript declarations are included.
+Requires Node.js 24 or later, or an environment with Fetch and AbortController. SQLite import also requires native Blob and FormData support. TypeScript declarations are included.
 
 ## Quick start
 
@@ -422,7 +422,35 @@ Use the database owner's JWT or a database-scoped API key for either format. `ex
 
 In a browser, pass `snapshot.data` to `new Blob([Uint8Array.from(snapshot.data)], { type: 'application/octet-stream' })` and use your application's download flow. The SDK does not write files or start downloads. Both exports are buffered in memory and must finish within the configured request timeout, including reading the response body. Set an appropriate timeout for your database size; streaming is not supported.
 
-Database, authentication, rate-limit, server, and network failures use the existing SDK error classes. Invalid snapshot headers throw `NetworkError`. Requests are not retried automatically and a rejected JWT does not fall back to an API key. These methods download on demand; Nebula does not offer scheduled backups or a server-side restore/upload endpoint.
+Database, authentication, rate-limit, server, and network failures use the existing SDK error classes. Invalid snapshot headers throw `NetworkError`. Requests are not retried automatically and a rejected JWT does not fall back to an API key. These methods download on demand; scheduled backups are not implemented.
+
+## SQLite import
+
+This method is part of the unreleased SDK changes and requires the backend's `POST /api/v1/databases/import/sqlite` endpoint. SDK 0.8.0 does not include it.
+
+```typescript
+import { readFile } from 'node:fs/promises';
+
+// Sign in and call client.setAuthToken(session.token) before importing.
+const controller = new AbortController();
+const imported = await client.databases.importSQLite(
+  { db_name: 'restored_project', file: await readFile('myapp.db') },
+  { timeout: 75_000, signal: controller.signal }
+);
+console.log(imported.db_name, imported.size_bytes);
+```
+
+`SQLiteImportPayload.file` accepts a browser `File`/`Blob`, a `Uint8Array`, or a Node `Buffer`. Pass `snapshot.data` from `client.exports.sqlite()` directly to import an exported snapshot. The SDK accepts file contents, not filesystem paths, and sends a fixed upload filename; filenames do not determine the destination.
+
+Import requires the owner's JWT. An API-key-only client rejects the operation locally with `AuthError`; an invalid JWT never falls back to a configured API key. `db_name` must contain 1–64 ASCII letters, digits or underscores. Import creates a new database, without replacing an existing registration or file; conflicts throw `ConflictError`. Generate a database API key separately after import.
+
+Snapshots are limited to **64 MiB**. The SDK checks the file size and 16-byte SQLite header before uploading; the server checks integrity, foreign keys and supported schema objects. Use a consistent standalone snapshot from SQLite's backup API or Nebula's export, rather than copying a live main file that may depend on a separate WAL. Ordinary tables, records, indexes, views, triggers, sequences, BLOBs and NULLs are preserved. SQL dumps, archives, encrypted files, virtual/shadow tables and reserved Nebula schema objects are not supported.
+
+`SQLiteImportOptions.timeout` overrides the client timeout for this request only, including upload and response-body reading. Without it, the client timeout applies (30 seconds by default). The server allows up to 60 seconds overall; the example uses 75 seconds to allow for transport overhead. Native Fetch manages the multipart boundary; custom Fetch implementations must accept standard FormData. Inputs are buffered in memory; file streaming and upload-progress callbacks are not provided.
+
+`SQLiteImportResponse` contains `message`, `db_name` and `size_bytes`. The SDK requires a complete matching acknowledgement with HTTP 201; an incomplete or unexpected success response throws `NetworkError`. HTTP failures retain the existing SDK error classes and status codes, including 408, 413, 415 and 503.
+
+Call `controller.abort()` to cancel, which throws `RequestAbortedError` (a `NetworkError` subclass). Cancellation, timeouts, network failures and ambiguous responses do not prove that the server rolled back. Check `client.databases.list()` or `client.databases.get(dbName)` before retrying, and reuse the same destination name to avoid creating a second copy. Writes are never retried automatically. Import does not migrate platform users, credentials, keys or telemetry, or restore over an existing database.
 
 ## Migrating from 0.2.0
 
@@ -442,17 +470,17 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                         |
-| ----------- | ------------------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`              |
-| `databases` | `create`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`  |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable` |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                     |
-| `sql`       | `execute`                                                                       |
-| `analytics` | `get`                                                                           |
-| `diagrams`  | `get`                                                                           |
-| `exports`   | `sql`, `sqlite`                                                                 |
-| `objects`   | `get`, `createIndex`, `dropIndex`                                               |
+| Module      | Methods                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------- |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                          |
+| `databases` | `create`, `importSQLite` (unreleased), `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                             |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                                 |
+| `sql`       | `execute`                                                                                                   |
+| `analytics` | `get`                                                                                                       |
+| `diagrams`  | `get`                                                                                                       |
+| `exports`   | `sql`, `sqlite`                                                                                             |
+| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                           |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -501,6 +529,8 @@ npm ci
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
 `npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, and schema alteration integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+
+`npm run test:backend:imports` runs the new SQLite import suite against a local backend checkout that implements the import endpoint. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. Before an import SDK release, add this suite to the integration baseline and update the CI backend pin to the merged import revision. The current default baseline deliberately remains compatible with the backend revision pinned for SDK 0.8.0.
 
 ### Pull request checks
 
