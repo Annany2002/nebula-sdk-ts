@@ -45,11 +45,12 @@ try {
   await writeFile(
     join(temporary, 'consumer.cjs'),
     `const assert = require('node:assert/strict');
-const { NebulaClient, ConflictError, ApiError } = require('nebula-sdk-ts');
+const { NebulaClient, ConflictError, ApiError, NetworkError, RequestAbortedError } = require('nebula-sdk-ts');
 const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
 assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.databases.get, 'function');
+assert.equal(typeof client.databases.importSQLite, 'function');
 assert.equal(typeof client.schema.alterTable, 'function');
 assert.equal(typeof client.sql.execute, 'function');
 assert.equal(typeof client.analytics.get, 'function');
@@ -62,6 +63,27 @@ assert.equal(typeof client.objects.dropTrigger, 'function');
 assert.equal(typeof client.exports.sql, 'function');
 assert.equal(typeof client.exports.sqlite, 'function');
 assert(new ConflictError('duplicate') instanceof ApiError);
+assert(new RequestAbortedError() instanceof NetworkError);
+async function checkImport() {
+  const bytes = Buffer.alloc(512);
+  bytes.write('SQLite format 3\\0');
+  let requests = 0;
+  const owner = new NebulaClient({ baseURL: 'http://localhost:8080', fetch: async (url, init) => {
+    requests++;
+    assert.equal(url, 'http://localhost:8080/api/v1/databases/import/sqlite');
+    assert.equal(init.method, 'POST');
+    assert.equal(init.headers.Authorization, 'Bearer package.jwt');
+    assert(!Object.hasOwn(init.headers, 'Content-Type'));
+    assert(init.body instanceof FormData);
+    assert.equal(init.body.get('db_name'), 'restored');
+    assert.deepEqual(Buffer.from(await init.body.get('file').arrayBuffer()), bytes);
+    return new Response(JSON.stringify({ message: 'Database imported successfully', db_name: 'restored', size_bytes: 512 }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+  } });
+  owner.setAuthToken('package.jwt');
+  assert.equal((await owner.databases.importSQLite({ db_name: 'restored', file: bytes })).size_bytes, 512);
+  assert.equal(requests, 1);
+}
+checkImport().catch((error) => { console.error(error); process.exitCode = 1; });
 `
   );
   execFileSync(process.execPath, ['consumer.cjs'], { cwd: temporary, stdio: 'inherit' });
@@ -211,8 +233,21 @@ async function checkContracts() {
   const bareSQL: string = await client.exports.sql('app');
   // @ts-expect-error Snapshots are byte arrays, not parsed record arrays.
   const parsedRows: Item[] = snapshot.data;
-  // @ts-expect-error There is no server restore/upload endpoint.
+  // @ts-expect-error Import is a database provisioning method, not an export method.
   await client.exports.restore('app', snapshot);
+  const importPayload: import('nebula-sdk-ts').SQLiteImportPayload = { db_name: 'restored', file: snapshot.data };
+  const importOptions: import('nebula-sdk-ts').SQLiteImportOptions = { timeout: 75_000, signal: new AbortController().signal };
+  const imported: import('nebula-sdk-ts').SQLiteImportResponse = await client.databases.importSQLite(importPayload, importOptions);
+  const uploadedSize: number = imported.size_bytes;
+  await client.databases.importSQLite({ db_name: 'browser_restore', file: new Blob([Uint8Array.from(snapshot.data)]) });
+  await client.databases.importSQLite({ db_name: 'file_restore', file: new File([Uint8Array.from(snapshot.data)], 'upload.db') });
+  // @ts-expect-error File contents are required; filesystem paths are not accepted.
+  await client.databases.importSQLite({ db_name: 'restored', file: '/tmp/snapshot.db' });
+  // @ts-expect-error Import cannot overwrite an existing database.
+  await client.databases.importSQLite({ ...importPayload, overwrite: true });
+  // @ts-expect-error The acknowledgement preserves the backend snake_case contract.
+  const oldSize: number = imported.sizeBytes;
+  void [uploadedSize, oldSize];
   void [dumpSQL, bytes, filename, bareSQL, parsedRows];
   void [label, total, oldPage, created, oldRow, row, oldId, primary, sqlitePrimary, oldKey, generated, signup, password, health];
 }

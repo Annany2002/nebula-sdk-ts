@@ -9,6 +9,23 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const sdk = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backend = resolve(process.env.NEBULA_BACKEND_DIR || join(sdk, '..', 'nebula-backend'));
+const baselineSuites = [
+  'auth',
+  'contracts',
+  'sql',
+  'analytics',
+  'diagram',
+  'objects',
+  'indexes',
+  'triggers',
+  'exports',
+  'details',
+  'alter',
+];
+const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
+if (suites.some((suite) => ![...baselineSuites, 'imports'].includes(suite))) {
+  throw new Error('Unknown backend integration suite.');
+}
 await access(join(backend, 'go.mod'));
 const temporary = await mkdtemp(join(tmpdir(), 'nebula-sdk-contracts-'));
 let server;
@@ -71,19 +88,9 @@ try {
   console.log('Building the local backend for isolated SDK integration tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
-  for (const suite of [
-    'auth',
-    'contracts',
-    'sql',
-    'analytics',
-    'diagram',
-    'objects',
-    'indexes',
-    'triggers',
-    'exports',
-    'details',
-    'alter',
-  ]) {
+  // Import checks target the pending backend contract; add them to the baseline
+  // and update the pinned CI revision together after that backend PR is merged.
+  for (const suite of suites) {
     // Separate servers keep each suite below the real per-IP rate limit.
     const suiteDirectory = join(temporary, suite);
     await mkdir(suiteDirectory);
