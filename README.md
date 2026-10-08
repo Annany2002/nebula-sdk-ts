@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `a21cd7d3ba5670b475cb2a7ac9443fca20c64a59`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -528,9 +528,9 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, and schema alteration integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, and SQLite import integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
-`npm run test:backend:imports` runs the new SQLite import suite against a local backend checkout that implements the import endpoint. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. Before an import SDK release, add this suite to the integration baseline and update the CI backend pin to the merged import revision. The current default baseline deliberately remains compatible with the backend revision pinned for SDK 0.8.0.
+`npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend import revision pinned above.
 
 ### Pull request checks
 

@@ -9,7 +9,11 @@
 - Add `RequestAbortedError` for caller cancellation, preserving shared authentication, HTTP errors, response-body deadlines and cleanup across multipart requests.
 - Verify multipart bytes, cancelled/unconfirmed uploads, independent owner databases, export/import round-trips, native database objects and packaged consumers.
 
-Import requires the pending backend SQLite import endpoint. Run `npm run test:backend:imports` against that backend checkout. Before releasing, add imports to the integration baseline and update the CI backend pin to the merged import revision; the current baseline still targets SDK 0.8.0's backend contract.
+### Changed
+
+- Pin backend integration checks to SQLite import revision `a21cd7d3ba5670b475cb2a7ac9443fca20c64a59` and include imports in the default integration suite.
+
+SQLite import requires this backend revision or later.
 
 ## 0.8.0 - 2026-10-07
 

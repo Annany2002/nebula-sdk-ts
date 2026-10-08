@@ -21,9 +21,10 @@ const baselineSuites = [
   'exports',
   'details',
   'alter',
+  'imports',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => ![...baselineSuites, 'imports'].includes(suite))) {
+if (suites.some((suite) => !baselineSuites.includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
@@ -88,8 +89,6 @@ try {
   console.log('Building the local backend for isolated SDK integration tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
-  // Import checks target the pending backend contract; add them to the baseline
-  // and update the pinned CI revision together after that backend PR is merged.
   for (const suite of suites) {
     // Separate servers keep each suite below the real per-IP rate limit.
     const suiteDirectory = join(temporary, suite);
