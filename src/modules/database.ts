@@ -1,5 +1,5 @@
 // src/modules/database.ts
-import { makeRequest, RequestContext } from '../http';
+import { makeMultipartRequest, makeRequest, RequestContext } from '../http';
 import {
   DbListResponse,
   DatabaseDetailsResponse,
@@ -7,9 +7,12 @@ import {
   DbInfoResponse,
   ApiKeyResponse,
   ApiKeyMetadataResponse,
+  SQLiteImportPayload,
+  SQLiteImportOptions,
+  SQLiteImportResponse,
 } from '../types';
 import { ModuleContext } from './_common';
-import { NebulaError } from '../errors';
+import { NebulaError, NetworkError, RequestAbortedError } from '../errors';
 
 export class DatabaseModule {
   private context: ModuleContext;
@@ -47,6 +50,74 @@ export class DatabaseModule {
       undefined,
       payload
     );
+  }
+
+  /**
+   * Import a standalone SQLite snapshot into a new database using the owner's JWT.
+   * Checks the size/header locally; the server validates integrity and schema support.
+   * Never retries. After cancellation, timeout or an unconfirmed response, check list/get
+   * before retrying: stopping the client does not confirm that the server rolled back.
+   */
+  async importSQLite(
+    payload: SQLiteImportPayload,
+    options: SQLiteImportOptions = {}
+  ): Promise<SQLiteImportResponse> {
+    if (
+      !payload ||
+      typeof payload.db_name !== 'string' ||
+      !/^[a-zA-Z0-9_]{1,64}$/.test(payload.db_name)
+    ) {
+      throw new NebulaError(
+        'Database name must contain 1–64 ASCII letters, digits or underscores.'
+      );
+    }
+    if (!options || typeof options !== 'object')
+      throw new NebulaError('Import options must be an object.');
+    const { timeout, signal } = options;
+    if (
+      timeout !== undefined &&
+      (!Number.isInteger(timeout) || timeout < 1 || timeout > 2_147_483_647)
+    ) {
+      throw new NebulaError('timeout must be an integer from 1 to 2147483647 milliseconds.');
+    }
+    if (signal !== undefined && !(signal instanceof AbortSignal)) {
+      throw new NebulaError('signal must be an AbortSignal.');
+    }
+    if (signal?.aborted) {
+      throw new RequestAbortedError(
+        undefined,
+        signal.reason instanceof Error ? signal.reason : undefined
+      );
+    }
+    const dbName = payload.db_name;
+    const file = await sqliteSnapshot(payload.file);
+    const form = new FormData();
+    form.append('db_name', dbName);
+    // The server ignores upload filenames. A fixed short name also bounds framing overhead.
+    form.append('file', file, 'snapshot.db');
+    const result = await makeMultipartRequest<unknown>(
+      'api/v1/databases/import/sqlite',
+      {
+        ...this.getRequestContext(),
+        timeout: timeout ?? this.context.config.timeout,
+        signal,
+      },
+      form,
+      201
+    );
+    const response =
+      result !== null && typeof result === 'object' ? (result as Record<string, unknown>) : null;
+    if (
+      response?.db_name !== dbName ||
+      response.size_bytes !== file.size ||
+      typeof response.message !== 'string' ||
+      !response.message.trim()
+    ) {
+      throw new NetworkError(
+        'Received an incomplete SQLite import acknowledgement. Check the database list before retrying.'
+      );
+    }
+    return { db_name: dbName, size_bytes: file.size, message: response.message };
   }
 
   /**
@@ -138,4 +209,37 @@ export class DatabaseModule {
     const path = `api/v1/account/databases/${encodeURIComponent(dbName)}/apikey`;
     await makeRequest<null>(path, 'DELETE', this.getRequestContext());
   }
+}
+
+async function sqliteSnapshot(input: Blob | Uint8Array): Promise<Blob> {
+  if (typeof Blob === 'undefined' || typeof FormData === 'undefined') {
+    throw new NebulaError('SQLite import requires native Blob and FormData support.');
+  }
+  if (!(input instanceof Blob) && !(input instanceof Uint8Array)) {
+    throw new NebulaError('Snapshot must be a Blob, File or Uint8Array.');
+  }
+  const size = input instanceof Blob ? input.size : input.byteLength;
+  if (size < 512 || size > 64 * 1024 * 1024) {
+    throw new NebulaError('SQLite snapshots must be between 512 bytes and 64 MiB.');
+  }
+  const file = input instanceof Blob ? input : new Blob([Uint8Array.from(input)]);
+  let header: Uint8Array;
+  try {
+    header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  } catch (cause) {
+    throw new NetworkError(
+      'Could not read the SQLite snapshot header.',
+      cause instanceof Error ? cause : new Error(String(cause))
+    );
+  }
+  if (
+    !Array.from('SQLite format 3\0').every(
+      (character, index) => header[index] === character.charCodeAt(0)
+    )
+  ) {
+    throw new NebulaError(
+      'Invalid SQLite snapshot header. SQL dumps and archives are not supported.'
+    );
+  }
+  return file;
 }

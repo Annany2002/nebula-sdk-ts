@@ -3,6 +3,7 @@ import {
   ApiError,
   NetworkError,
   TimeoutError,
+  RequestAbortedError,
   AuthError,
   ForbiddenError,
   NotFoundError,
@@ -20,6 +21,7 @@ export type RequestAuthentication = 'auto' | 'bearer' | 'none';
 export interface RequestContext extends NebulaClientConfig {
   authToken?: string | null;
   authentication?: RequestAuthentication;
+  signal?: AbortSignal;
 }
 
 function authorization(context: RequestContext): string | undefined {
@@ -94,9 +96,35 @@ export async function makeRequest<T>(
     method,
     context,
     queryParams,
+    body === undefined ? undefined : JSON.stringify(body),
+    'application/json',
+    async (response) => (await readResponse(response)) as T,
+    body === undefined ? undefined : 'application/json'
+  );
+}
+
+/** @internal Fetch generates the multipart boundary; do not set Content-Type manually. */
+export async function makeMultipartRequest<T>(
+  path: string,
+  context: RequestContext,
+  body: FormData,
+  expectedStatus?: number
+): Promise<T> {
+  return sendRequest(
+    path,
+    'POST',
+    context,
+    undefined,
     body,
     'application/json',
-    async (response) => (await readResponse(response)) as T
+    async (response) => {
+      if (expectedStatus !== undefined && response.status !== expectedStatus) {
+        throw new NetworkError(
+          `Expected HTTP ${expectedStatus} from the API, received ${response.status}.`
+        );
+      }
+      return (await readResponse(response)) as T;
+    }
   );
 }
 
@@ -121,9 +149,10 @@ async function sendRequest<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   context: RequestContext,
   queryParams: Record<string, string | number | boolean> | undefined,
-  body: unknown,
+  body: BodyInit | undefined,
   accept: string,
-  readResult: (response: Response) => Promise<T>
+  readResult: (response: Response) => Promise<T>,
+  contentType?: string
 ): Promise<T> {
   const fetchFn = context.fetch ?? globalThis.fetch;
   const requestTimeout = context.timeout ?? DEFAULT_TIMEOUT;
@@ -137,25 +166,50 @@ async function sendRequest<T>(
   const headers: Record<string, string> = { Accept: accept };
   const credential = authorization(context);
   if (credential) headers.Authorization = credential;
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const serializedBody = body === undefined ? undefined : JSON.stringify(body);
+  if (contentType) headers['Content-Type'] = contentType;
+  if (context.signal?.aborted) {
+    throw new RequestAbortedError(
+      undefined,
+      context.signal.reason instanceof Error ? context.signal.reason : undefined
+    );
+  }
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
+  let abortedBy: 'caller' | 'timeout' | undefined;
+  const cancel = () => {
+    if (controller.signal.aborted) return;
+    abortedBy = 'caller';
+    controller.abort(context.signal?.reason);
+  };
+  const timeoutId = setTimeout(() => {
+    if (controller.signal.aborted) return;
+    abortedBy = 'timeout';
+    controller.abort();
+  }, requestTimeout);
+  context.signal?.addEventListener('abort', cancel, { once: true });
 
   try {
     const response = await fetchFn(url.toString(), {
       method,
       headers,
-      body: serializedBody,
+      body,
       signal: controller.signal,
     });
+    if (controller.signal.aborted) throw new Error('Request aborted.');
     if (!response.ok) {
       const result = await readResponse(response);
       throwApiError(response.status, errorData(result, response.status));
     }
-    return await readResult(response);
+    const result = await readResult(response);
+    if (controller.signal.aborted) throw new Error('Request aborted.');
+    return result;
   } catch (cause) {
-    if (controller.signal.aborted) {
+    if (abortedBy === 'caller') {
+      throw new RequestAbortedError(
+        undefined,
+        controller.signal.reason instanceof Error ? controller.signal.reason : undefined
+      );
+    }
+    if (abortedBy === 'timeout') {
       throw new TimeoutError(`Request timed out after ${requestTimeout}ms`);
     }
     if (cause instanceof ApiError || cause instanceof NetworkError) throw cause;
@@ -163,5 +217,6 @@ async function sendRequest<T>(
     throw new NetworkError(`Failed to fetch: ${error.message}`, error);
   } finally {
     clearTimeout(timeoutId);
+    context.signal?.removeEventListener('abort', cancel);
   }
 }

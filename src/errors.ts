@@ -45,6 +45,15 @@ export class TimeoutError extends NetworkError {
   }
 }
 
+/** Error when the caller cancels a request; cancellation does not confirm server rollback. */
+export class RequestAbortedError extends NetworkError {
+  constructor(message = 'The request was cancelled.', cause?: Error) {
+    super(message, cause);
+    this.name = 'RequestAbortedError';
+    Object.setPrototypeOf(this, RequestAbortedError.prototype);
+  }
+}
+
 // --- Specific API Error Subclasses ---
 
 /** Error for authentication failures (401 Unauthorized) */

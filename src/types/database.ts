@@ -38,6 +38,29 @@ export interface DbInfoResponse {
   message: string;
 }
 
+/** A standalone SQLite snapshot, imported into a new database using the owner's JWT. */
+export interface SQLiteImportPayload {
+  /** New name: 1–64 ASCII letters, digits or underscores. Existing databases are never replaced. */
+  db_name: string;
+  /** Browser File/Blob or buffered bytes (including Node Buffer); at most 64 MiB. */
+  file: Blob | Uint8Array;
+}
+
+export interface SQLiteImportOptions {
+  /** Cancels this request only. Check the database list before retrying an interrupted import. */
+  signal?: AbortSignal;
+  /** Request deadline in milliseconds, including the upload and response body. Defaults to the client timeout. */
+  timeout?: number;
+}
+
+/** Acknowledgement after the snapshot and its database registration are committed. */
+export interface SQLiteImportResponse {
+  message: string;
+  db_name: string;
+  /** Uploaded snapshot length; later database writes may change its size. */
+  size_bytes: number;
+}
+
 /** Response structure for API key operations */
 export interface ApiKeyResponse {
   api_key: string;

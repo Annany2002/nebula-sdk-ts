@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Import standalone SQLite snapshots into new databases with `client.databases.importSQLite()`, using an owner JWT and browser `File`/`Blob` or `Uint8Array`/Node `Buffer` inputs.
+- Export typed import payloads, acknowledgements and options for cancellation and per-import timeouts. Validate destination names, snapshot sizes and headers without automatic write retries.
+- Add `RequestAbortedError` for caller cancellation, preserving shared authentication, HTTP errors, response-body deadlines and cleanup across multipart requests.
+- Verify multipart bytes, cancelled/unconfirmed uploads, independent owner databases, export/import round-trips, native database objects and packaged consumers.
+
+### Changed
+
+- Pin backend integration checks to SQLite import revision `a21cd7d3ba5670b475cb2a7ac9443fca20c64a59` and include imports in the default integration suite.
+
+SQLite import requires this backend revision or later.
+
 ## 0.8.0 - 2026-10-07
 
 ### Added
