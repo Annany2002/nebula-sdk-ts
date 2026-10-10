@@ -89,7 +89,8 @@ export async function makeRequest<T>(
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
   context: RequestContext,
   queryParams?: Record<string, string | number | boolean>,
-  body?: unknown
+  body?: unknown,
+  expectedStatuses?: readonly number[]
 ): Promise<T> {
   return sendRequest(
     path,
@@ -98,7 +99,10 @@ export async function makeRequest<T>(
     queryParams,
     body === undefined ? undefined : JSON.stringify(body),
     'application/json',
-    async (response) => (await readResponse(response)) as T,
+    async (response) => {
+      checkStatus(response, expectedStatuses);
+      return (await readResponse(response)) as T;
+    },
     body === undefined ? undefined : 'application/json'
   );
 }
@@ -131,7 +135,11 @@ export async function makeMultipartRequest<T>(
 /** @internal Buffered binary GET; shares authentication, errors, and the body-read deadline. */
 export async function makeBinaryRequest(
   path: string,
-  context: RequestContext
+  context: RequestContext,
+  options?: {
+    expectedSize: number;
+    validate: (data: Uint8Array) => Promise<void>;
+  }
 ): Promise<Uint8Array> {
   return sendRequest(
     path,
@@ -140,8 +148,53 @@ export async function makeBinaryRequest(
     undefined,
     undefined,
     'application/octet-stream',
-    async (response) => new Uint8Array(await response.arrayBuffer())
+    async (response) => {
+      if (!options) return new Uint8Array(await response.arrayBuffer());
+      checkStatus(response, [200]);
+      const data = await readBoundedBinary(response, options.expectedSize);
+      await options.validate(data);
+      return data;
+    }
   );
+}
+
+function checkStatus(response: Response, expected?: readonly number[]): void {
+  if (expected && !expected.includes(response.status)) {
+    throw new NetworkError(`Unexpected HTTP ${response.status} acknowledgement from the API.`);
+  }
+}
+
+async function readBoundedBinary(response: Response, expectedSize: number): Promise<Uint8Array> {
+  const length = response.headers.get('content-length');
+  if (length !== null && (!/^\d+$/.test(length) || Number(length) !== expectedSize)) {
+    throw new NetworkError('Backup download length does not match its metadata.');
+  }
+  if (!response.body) throw new NetworkError('Backup download has no response body.');
+  const reader = response.body.getReader();
+  const data = new Uint8Array(expectedSize);
+  let offset = 0;
+  try {
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      const { value } = chunk;
+      if (value.byteLength > expectedSize - offset) {
+        throw new NetworkError('Backup download exceeds its expected size.');
+      }
+      data.set(value, offset);
+      offset += value.byteLength;
+      chunk = await reader.read();
+    }
+    if (offset !== expectedSize) throw new NetworkError('Backup download is incomplete.');
+    return data;
+  } finally {
+    // Terminate unread bodies after overflow or failure, including custom Fetch streams.
+    try {
+      await reader.cancel();
+    } catch {
+      // Preserve the original read error if the broken stream also rejects cancellation.
+    }
+    reader.releaseLock();
+  }
 }
 
 async function sendRequest<T>(
@@ -218,5 +271,6 @@ async function sendRequest<T>(
   } finally {
     clearTimeout(timeoutId);
     context.signal?.removeEventListener('abort', cancel);
+    controller.abort();
   }
 }

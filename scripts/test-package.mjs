@@ -62,6 +62,9 @@ assert.equal(typeof client.objects.createTrigger, 'function');
 assert.equal(typeof client.objects.dropTrigger, 'function');
 assert.equal(typeof client.exports.sql, 'function');
 assert.equal(typeof client.exports.sqlite, 'function');
+for (const method of ['create', 'list', 'get', 'download', 'restore', 'delete']) {
+  assert.equal(typeof client.backups[method], 'function');
+}
 assert(new ConflictError('duplicate') instanceof ApiError);
 assert(new RequestAbortedError() instanceof NetworkError);
 async function checkImport() {
@@ -98,6 +101,27 @@ void client;
 void error;
 interface Item { item_key: string; label: string }
 async function checkContracts() {
+  const backupOptions: import('nebula-sdk-ts').BackupRequestOptions = { timeout: 60000, signal: new AbortController().signal };
+  const backupPayload: import('nebula-sdk-ts').CreateBackupPayload = { backup_id: '12345678-1234-1234-1234-123456789abc' };
+  const backupResult: import('nebula-sdk-ts').BackupResponse = await client.backups.create('app', backupPayload, backupOptions);
+  const backupMetadata: import('nebula-sdk-ts').DatabaseBackup = backupResult.backup;
+  const backupStatus: 'creating' | 'ready' | 'deleting' = backupMetadata.status;
+  const backupPage: import('nebula-sdk-ts').BackupListResponse = await client.backups.list({ db_name: 'app', limit: 10, offset: 0 }, backupOptions);
+  const downloaded: import('nebula-sdk-ts').BackupDownload = await client.backups.download(backupMetadata.backup_id, backupOptions);
+  const restorePayload: import('nebula-sdk-ts').RestoreBackupPayload = { db_name: 'copy' };
+  const restoredBackup: import('nebula-sdk-ts').RestoreBackupResponse = await client.backups.restore(backupMetadata.backup_id, restorePayload);
+  await client.backups.get(backupMetadata.backup_id);
+  await client.backups.delete(backupMetadata.backup_id);
+  // @ts-expect-error Creation requires a retained UUID; no implicit creation intent is generated.
+  await client.backups.create('app', {});
+  // @ts-expect-error Restores never support overwriting live databases.
+  await client.backups.restore(backupMetadata.backup_id, { db_name: 'copy', overwrite: true });
+  // @ts-expect-error Backup pages are envelopes, not arrays.
+  const bareBackups: import('nebula-sdk-ts').DatabaseBackup[] = backupPage;
+  // @ts-expect-error Deleted identifiers are not exposed as visible metadata states.
+  const deletedStatus: import('nebula-sdk-ts').DatabaseBackup['status'] = 'deleted';
+  const machineCode: string | undefined = error.errorData?.code;
+  void [backupStatus, backupPage, downloaded, restoredBackup, bareBackups, deletedStatus, machineCode];
   const detailResult: DatabaseDetailsResponse = await client.databases.get('app');
   const detail: DatabaseDetails = detailResult.database;
   const detailCount: number = detail.totalRecords;

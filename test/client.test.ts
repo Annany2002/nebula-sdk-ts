@@ -57,6 +57,7 @@ describe('NebulaClient Initialization', () => {
     expect(client.diagrams).toBeDefined();
     expect(client.objects).toBeDefined();
     expect(client.exports).toBeDefined();
+    expect(client.backups).toBeDefined();
   });
 
   it('should apply default timeout of 30000ms', () => {

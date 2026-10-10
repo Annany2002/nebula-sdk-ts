@@ -10,3 +10,4 @@ export * from './analytics';
 export * from './diagram';
 export * from './objects';
 export * from './export';
+export * from './backup';

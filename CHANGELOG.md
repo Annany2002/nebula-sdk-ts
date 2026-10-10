@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Owner-JWT managed backups with `client.backups.create()`, `list()`, `get()`, `download()`, `restore()` and `delete()`.
+- Typed metadata, pagination, cancellation and request deadlines; explicit UUID creation intents and no automatic write retries.
+- Bounded downloads verified against saved size, SQLite header and SHA-256; preserve machine-readable server error codes.
+- Failure-case unit tests, packed consumer checks and backend backup integration covering native snapshots, object/sequence restoration, empty databases, owner isolation, deleted sources and UUID tombstones.
+
+### Changed
+
+- Pin backend CI to managed-backup revision `ecede100d8747a53405364bcf14d00759f92a545` and include backups in the default integration suite.
+
+Managed backups require this backend revision or later. npm 0.9.0 does not include this module.
+
 ## 0.9.0 - 2026-10-08
 
 ### Added
