@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `a21cd7d3ba5670b475cb2a7ac9443fca20c64a59`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `ecede100d8747a53405364bcf14d00759f92a545`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -368,7 +368,7 @@ Both methods accept owner JWTs or database-scoped API keys and use the existing 
 
 ### Create and drop triggers
 
-Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin the newer SQLite import revision listed above.
+Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin the newer managed-backup revision listed above.
 
 ```typescript
 const createdTrigger = await client.objects.createTrigger('myapp', {
@@ -444,7 +444,7 @@ console.log(imported.db_name, imported.size_bytes);
 
 Import requires the owner's JWT. An API-key-only client rejects the operation locally with `AuthError`; an invalid JWT never falls back to a configured API key. `db_name` must contain 1–64 ASCII letters, digits or underscores. Import creates a new database, without replacing an existing registration or file; conflicts throw `ConflictError`. Generate a database API key separately after import.
 
-Snapshots are limited to **64 MiB**. The SDK checks the file size and 16-byte SQLite header before uploading; the server checks integrity, foreign keys and supported schema objects. Use a consistent standalone snapshot from SQLite's backup API or Nebula's export, rather than copying a live main file that may depend on a separate WAL. Ordinary tables, records, indexes, views, triggers, sequences, BLOBs and NULLs are preserved. SQL dumps, archives, encrypted files, virtual/shadow tables and reserved Nebula schema objects are not supported.
+Snapshots are limited to **64 MiB**. The SDK checks the file size and 16-byte SQLite header before uploading; the server checks integrity, foreign keys and supported schema objects. Use a consistent standalone snapshot from SQLite's backup API or Nebula's export, rather than copying a live main file that may depend on a separate WAL. Ordinary tables, records, indexes, views, triggers, sequences, BLOBs and NULLs are preserved. SQL dumps, archives, encrypted files and virtual/shadow tables are not supported. The managed-backup backend also accepts canonical Nebula timestamp metadata from native snapshots; modified or arbitrary reserved schema objects are rejected.
 
 `SQLiteImportOptions.timeout` overrides the client timeout for this request only, including upload and response-body reading. Without it, the client timeout applies (30 seconds by default). The server allows up to 60 seconds overall; the example uses 75 seconds to allow for transport overhead. Native Fetch manages the multipart boundary; custom Fetch implementations must accept standard FormData. Inputs are buffered in memory; file streaming and upload-progress callbacks are not provided.
 
@@ -454,7 +454,7 @@ Call `controller.abort()` to cancel, which throws `RequestAbortedError` (a `Netw
 
 ## Managed backups (unreleased)
 
-This module is implemented on the managed-backups feature branch. It is **not included in npm 0.9.0** and requires the matching backend backup endpoints. The current CI backend pin predates those endpoints; update that pin and enable the backup integration suite before merging or publishing this SDK feature.
+This module is **not included in npm 0.9.0**. It requires backend revision `ecede100d8747a53405364bcf14d00759f92a545` or later. CI verifies its contracts against that merged revision as part of the default backend integration suite.
 
 Every `client.backups` method requires the owner's JWT. API keys cannot manage backups. Create one UUID per creation intent and persist it before sending a request:
 
@@ -577,11 +577,11 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, and SQLite import integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, SQLite import and managed-backup integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
-`npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend import revision pinned above.
+`npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend revision pinned above.
 
-`npm run test:backend:backups` tests the matching local backend's unmerged managed-backup contract using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. This suite is intentionally separate from the existing CI baseline until the backend feature is merged. Before merging the SDK stage, pin that merged backend commit in `.github/workflows/ci.yml` and add `backups` to `baselineSuites` in `scripts/test-backend.mjs`; run both the default and backup suites. Do not publish this feature against the old baseline.
+`npm run test:backend:backups` runs only the managed-backup suite using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. The default integration suite and CI also run these checks against the merged managed-backup revision pinned above.
 
 ### Pull request checks
 
