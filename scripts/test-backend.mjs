@@ -24,7 +24,8 @@ const baselineSuites = [
   'imports',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => !baselineSuites.includes(suite))) {
+// Enable backups in the default baseline after its backend revision is merged and pinned in CI.
+if (suites.some((suite) => ![...baselineSuites, 'backups'].includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
