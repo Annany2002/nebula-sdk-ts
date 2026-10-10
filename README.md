@@ -452,9 +452,9 @@ Snapshots are limited to **64 MiB**. The SDK checks the file size and 16-byte SQ
 
 Call `controller.abort()` to cancel, which throws `RequestAbortedError` (a `NetworkError` subclass). Cancellation, timeouts, network failures and ambiguous responses do not prove that the server rolled back. Check `client.databases.list()` or `client.databases.get(dbName)` before retrying, and reuse the same destination name to avoid creating a second copy. Writes are never retried automatically. Import does not migrate platform users, credentials, keys or telemetry, or restore over an existing database.
 
-## Managed backups (unreleased)
+## Managed backups
 
-This module is **not included in npm 0.9.0**. It requires backend revision `ecede100d8747a53405364bcf14d00759f92a545` or later. CI verifies its contracts against that merged revision as part of the default backend integration suite.
+This module requires **SDK 0.10.0 or later** and backend revision `ecede100d8747a53405364bcf14d00759f92a545` or later. CI verifies its contracts against that merged revision as part of the default backend integration suite.
 
 Every `client.backups` method requires the owner's JWT. API keys cannot manage backups. Create one UUID per creation intent and persist it before sending a request:
 
@@ -528,7 +528,7 @@ This change corrects declarations to match responses the backend already returns
 | `analytics` | `get`                                                                                          |
 | `diagrams`  | `get`                                                                                          |
 | `exports`   | `sql`, `sqlite`                                                                                |
-| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (unreleased)                          |
+| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                         |
 | `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                              |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
