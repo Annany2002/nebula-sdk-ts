@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 - 2026-10-10
 
 ### Added
 
@@ -13,7 +13,7 @@
 
 - Pin backend CI to managed-backup revision `ecede100d8747a53405364bcf14d00759f92a545` and include backups in the default integration suite.
 
-Managed backups require this backend revision or later. npm 0.9.0 does not include this module.
+Managed backups require this backend revision or later and an owner JWT. Downloads require Web Crypto in Node.js 24 or a secure browser context. This release adds manual local-disk backups; scheduling, automatic retention and remote storage are not included.
 
 ## 0.9.0 - 2026-10-08
 
