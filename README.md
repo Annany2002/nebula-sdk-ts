@@ -1,6 +1,6 @@
 # Nebula TypeScript SDK
 
-JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, SQL, analytics, diagram, object, and export modules using native Fetch.
+JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, SQL, analytics, diagram, object, export, and managed backup modules using native Fetch.
 
 The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides the web interface for database and account management.
 
@@ -452,6 +452,54 @@ Snapshots are limited to **64 MiB**. The SDK checks the file size and 16-byte SQ
 
 Call `controller.abort()` to cancel, which throws `RequestAbortedError` (a `NetworkError` subclass). Cancellation, timeouts, network failures and ambiguous responses do not prove that the server rolled back. Check `client.databases.list()` or `client.databases.get(dbName)` before retrying, and reuse the same destination name to avoid creating a second copy. Writes are never retried automatically. Import does not migrate platform users, credentials, keys or telemetry, or restore over an existing database.
 
+## Managed backups (unreleased)
+
+This module is implemented on the managed-backups feature branch. It is **not included in npm 0.9.0** and requires the matching backend backup endpoints. The current CI backend pin predates those endpoints; update that pin and enable the backup integration suite before merging or publishing this SDK feature.
+
+Every `client.backups` method requires the owner's JWT. API keys cannot manage backups. Create one UUID per creation intent and persist it before sending a request:
+
+```typescript
+const backupId = crypto.randomUUID();
+// Save backupId in your application's durable state before making the request.
+const { backup } = await client.backups.create(
+  'myapp',
+  {
+    backup_id: backupId,
+  },
+  { timeout: 60_000 }
+);
+
+const history = await client.backups.list({ db_name: 'myapp', limit: 10, offset: 0 });
+const accountHistory = await client.backups.list();
+const metadata = await client.backups.get(backup.backup_id);
+
+const snapshot = await client.backups.download(backup.backup_id);
+// snapshot.data is a Uint8Array; the SDK does not write files or start downloads.
+console.log(snapshot.filename, snapshot.backup.sha256);
+
+const restored = await client.backups.restore(backup.backup_id, {
+  db_name: 'myapp_restored',
+});
+console.log(restored.db_name);
+
+// Permanently removes the saved snapshot; live and restored databases stay intact.
+await client.backups.delete(backup.backup_id);
+```
+
+`create()` returns `{ backup }` for both first creation (HTTP 201) and an identical completed replay (HTTP 200). Reusing an ID returns the original snapshot, even after later writes or deletion of its source. Never reuse an ID for a new creation intent: deleted IDs remain reserved permanently. Metadata contains `backup_id`, `db_name`, `status`, `size_bytes`, `sha256` and `created_at`; visible states are `creating`, `ready` and `deleting`.
+
+`list()` returns `{ backups, pagination: { total, limit, offset } }`. The default limit is 20; supported limits are 1–100 and offsets are 0–1,000,000. History is sorted by creation time descending, then UUID ascending. The optional `db_name` filter keeps working after source deletion. `get()` returns `{ backup }`. `download()` fetches metadata and then a buffered snapshot, verifies its size, SQLite header and SHA-256, and returns `{ backup, data, filename }`. This requires Web Crypto (Node.js 24 or a secure browser context). The download is bounded to 64 MiB and needs sufficient memory for the byte buffer and digest input. A snapshot deleted between metadata inspection and download can return 404.
+
+`restore()` returns `{ message, backup_id, db_name, size_bytes }` after creating a new database. Names must contain 1–64 ASCII letters, digits or underscores. Existing registrations, files and sidecars are never replaced; API keys and account credentials are not restored. `delete()` requires HTTP 204 and is idempotent for missing owner-visible IDs.
+
+All methods accept a final `BackupRequestOptions` object with `signal` and `timeout`. The deadline covers each HTTP request's headers, body and download verification; download makes two requests. No operation retries automatically. For unconfirmed writes (cancellation, timeout, network or malformed acknowledgement, HTTP 408 or 5xx):
+
+- **Create:** inspect `get(backupId)` before explicitly retrying with the **same UUID and source name**. A `creating` snapshot or HTTP 503 needs time to finish; a completed replay never creates another snapshot.
+- **Restore:** inspect `databases.list()` or `databases.get(destinationName)` before retrying with the **same destination name**. An existing name may belong to another creation; inspect it rather than assuming the restore succeeded.
+- **Delete:** inspect `get(backupId)` or history. A 404 means it is no longer visible. Explicit deletion retries are safe; `creating` snapshots are busy and cannot be deleted.
+
+HTTP errors retain SDK error classes and `error.errorData?.code`, including `backup_busy`, `backup_id_conflict`, `backup_quota_exceeded`, `backup_unavailable` and `database_exists`. The server limits snapshots to 64 MiB, active backups to 20 per account, and retained/reserved bytes to 256 MiB per account. Creation reserves 64 MiB until its actual size is known. These are manual backups on the server's local disk; retain an off-server copy for host-loss recovery. Scheduling, automatic retention and remote storage are not implemented.
+
 ## Migrating from 0.2.0
 
 This change corrects declarations to match responses the backend already returns. Runtime response bodies remain unchanged.
@@ -480,6 +528,7 @@ This change corrects declarations to match responses the backend already returns
 | `analytics` | `get`                                                                                          |
 | `diagrams`  | `get`                                                                                          |
 | `exports`   | `sql`, `sqlite`                                                                                |
+| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (unreleased)                          |
 | `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                              |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
@@ -531,6 +580,8 @@ npm ci
 `npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, and SQLite import integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 `npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend import revision pinned above.
+
+`npm run test:backend:backups` tests the matching local backend's unmerged managed-backup contract using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. This suite is intentionally separate from the existing CI baseline until the backend feature is merged. Before merging the SDK stage, pin that merged backend commit in `.github/workflows/ci.yml` and add `backups` to `baselineSuites` in `scripts/test-backend.mjs`; run both the default and backup suites. Do not publish this feature against the old baseline.
 
 ### Pull request checks
 
