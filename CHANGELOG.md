@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Public password-recovery requests and explicit password replacement through `auth.forgotPassword()` and `auth.resetPassword()`, with validated payloads, cancellation, total deadlines and no automatic retries.
+- Recovery contract, fresh-package type coverage and isolated backend recovery tests with captured mail.
+
+Requires the password-recovery backend implementation and configured SMTP with `PASSWORD_RESET_ENABLED=true`. This source change does not publish a package or change the 0.12.0 release history.
+
 ## 0.12.0 - 2026-10-17
 
 ### Added

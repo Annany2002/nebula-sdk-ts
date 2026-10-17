@@ -177,6 +177,29 @@ Signup, login, profile reads/updates and the new verification methods accept opt
 
 Email-verification integration runs by default in `npm run test:backend` and CI. Run `npm run test:backend:verification` for that suite alone. It uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files.
 
+### Password recovery (unreleased)
+
+The source branch adds `auth.forgotPassword()` and `auth.resetPassword()`; these methods are not in published SDK 0.12.0. They require the password-recovery backend endpoints and `PASSWORD_RESET_ENABLED=true` with configured SMTP. Recovery can run independently of signup verification. See the [backend contract](https://github.com/Annany2002/nebula-backend/blob/main/docs/api-reference/password-recovery.mdx) when that backend change is merged.
+
+```typescript
+await client.auth.forgotPassword('builder@example.com', { timeout: 15000 });
+// Read the opaque token from the email fragment and remove it from the URL before analytics.
+// Submit explicitly after the user enters and confirms their new password.
+async function completePasswordReset(token: string, password: string) {
+  await client.auth.resetPassword({ token, password });
+  client.setAuthToken(null);
+  // Sign in separately; recovery does not create or replace the SDK's stored session.
+}
+```
+
+Both calls are public, omit JWT/API-key authorization and browser credentials, disable caching and redirects, and never retry automatically. `forgotPassword()` expects `202`; `resetPassword()` expects `200`. Each returns only `{ message }`, with no token or user metadata. Request acknowledgement confirms neither account existence nor delivery. Options support cancellation and a total deadline including the body.
+
+Use the raw canonical token, not its URL. Passwords must contain at least eight Unicode characters and at most 72 UTF-8 bytes. A successful reset revokes existing JWT sessions and pending account links; API keys, tenant data, verification requirements and suspension policy are preserved. Clear your application's stored JWT and sign in again. Password-change notification is best effort.
+
+Read `error.errorData?.code` for `invalid_password_reset_token`, `password_reset_disabled`, `password_reset_busy` and `password_reset_rate_limited`; honor `RateLimitError.retryAfterSeconds`. Network failures, timeouts and server failures can leave a reset uncertain. Try signing in with the new password before requesting another link; never retry a credential write automatically. A used-token error after an uncertain response does not prove that the password was unchanged.
+
+Run `npm run test:backend:recovery` against a local checkout containing the new backend implementation. It uses disposable SQLite data and captured in-memory mail. This suite is opt-in until the backend feature is merged and its revision can be pinned in CI. The existing default suites remain pinned to the released backend baseline.
+
 ## Backend compatibility
 
 The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1`. Native trigger management is available in SDK 0.8.0 and later.
@@ -604,6 +627,8 @@ This change corrects declarations to match responses the backend already returns
 | `auth.healthP()` resolves to void                 | Inspect `ProtectedHealthResponse` for the current authentication scheme     |
 
 ## Module surface
+
+The table describes the published SDK. The [unreleased recovery methods](#password-recovery-unreleased) are documented separately above.
 
 | Module      | Methods                                                                                            |
 | ----------- | -------------------------------------------------------------------------------------------------- |
