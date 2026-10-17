@@ -1,5 +1,7 @@
 // src/types/common.ts
 
+export type PlatformRole = 'user' | 'admin';
+
 /** Standard structure for API error responses from Nebula */
 export interface NebulaErrorResponse {
   error: string;
@@ -9,6 +11,8 @@ export interface NebulaErrorResponse {
 }
 
 export interface User {
+  /** Current profile membership; omitted by older servers and the login response. */
+  role?: PlatformRole;
   /** Optional on older servers. False does not by itself mean access is restricted. */
   email_verified?: boolean;
   verification_required?: boolean;

@@ -23,6 +23,14 @@ describe('Endpoint authentication policy', () => {
           },
         });
       }
+      if (String(url).endsWith('/api/v1/account/user/me')) {
+        return mockResponse(200, {
+          userId: 'current-user',
+          username: 'builder',
+          email: 'builder@example.test',
+          createdAt: '2026-10-01',
+        });
+      }
       return mockResponse(200, {});
     });
   });

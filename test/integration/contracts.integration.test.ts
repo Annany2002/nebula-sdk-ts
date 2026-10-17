@@ -61,7 +61,10 @@ suite('Existing SDK contracts against the local Go backend', () => {
     expect(me.userId).toBe(userId);
     expect(me).not.toHaveProperty('password');
     expect(me).not.toHaveProperty('PasswordHash');
-    expect(await account.auth.findUser(userId)).toEqual(me);
+    // Current-profile membership is additive; legacy user lookup and login omit it.
+    const { role, ...identity } = me;
+    if (role !== undefined) expect(role).toBe('user');
+    expect(await account.auth.findUser(userId)).toEqual(identity);
     expect(await account.auth.healthP()).toEqual({ userId, dbId: null });
     expect(await data.auth.healthP()).toEqual({ authenticated_by: 'api_key', status: 'ok' });
   });

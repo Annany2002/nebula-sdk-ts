@@ -20,6 +20,7 @@ import {
   authOptions,
   parseProfileUpdate,
   parseSignup,
+  parseUser,
   parseVerificationResponse,
   validateEmail,
   validateVerificationToken,
@@ -178,7 +179,11 @@ export class AuthModule {
     return makeRequest<UserInfo>(
       'api/v1/account/user/me',
       'GET',
-      this.getRequestContext('bearer', options)
+      this.getRequestContext('bearer', options),
+      undefined,
+      undefined,
+      [200],
+      parseUser
     );
   }
 
