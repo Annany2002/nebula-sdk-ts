@@ -90,9 +90,9 @@ For data operations, a configured JWT takes precedence over the database API key
 
 The client sends only standard API headers. Request timeouts cover receiving headers and reading the response body. Network failures preserve their cause, HTTP errors preserve status codes, and `409 Conflict` responses throw `ConflictError`. Requests are not retried automatically, including writes.
 
-### Account summary and administration (unreleased)
+### Account summary and administration
 
-The working branch adds `client.account` and `client.admin`; these are not part of npm 0.11.0. Their endpoints require backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. Older servers still support existing SDK methods but may omit profile roles or return `404` for new endpoints.
+Available in SDK **0.12.0 and later**, with backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. Older servers still support existing SDK methods but may omit profile roles or return `404` for new endpoints.
 
 ```typescript
 const { summary } = await client.account.getSummary({ timeout: 15000 });
@@ -605,20 +605,20 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                                           |
-| ----------- | ------------------------------------------------------------------------------------------------- |
-| `account`   | `getSummary` (unreleased)                                                                         |
-| `admin`     | `listUsers`, `getUser`, `getStats`, `suspendUser`, `activateUser`, `listAuditEvents` (unreleased) |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                |
-| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`    |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                   |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                       |
-| `sql`       | `execute`                                                                                         |
-| `analytics` | `get`                                                                                             |
-| `diagrams`  | `get`                                                                                             |
-| `exports`   | `sql`, `sqlite`                                                                                   |
-| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                            |
-| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                 |
+| Module      | Methods                                                                                            |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| `account`   | `getSummary` (SDK 0.12.0+)                                                                         |
+| `admin`     | `listUsers`, `getUser`, `getStats`, `suspendUser`, `activateUser`, `listAuditEvents` (SDK 0.12.0+) |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                 |
+| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`     |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                    |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                        |
+| `sql`       | `execute`                                                                                          |
+| `analytics` | `get`                                                                                              |
+| `diagrams`  | `get`                                                                                              |
+| `exports`   | `sql`, `sqlite`                                                                                    |
+| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                             |
+| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                  |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
