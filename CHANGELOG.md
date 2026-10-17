@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0 - 2026-10-17
 
 ### Added
 
@@ -12,7 +12,7 @@
 
 - `auth.getMe()` validates the documented profile fields and preserves optional membership without adding a role to login responses or assuming a role for older servers.
 
-The new endpoints require backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. CI pins this revision and includes management in the default integration suite. No package version change or publication is included.
+The new endpoints require backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. CI pins this revision and includes management in the default integration suite.
 
 ## 0.11.0 - 2026-10-17
 
