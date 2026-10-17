@@ -19,7 +19,15 @@ try {
     })
   );
   const files = packed.files.map(({ path }) => path);
-  for (const expected of ['dist/index.js', 'dist/index.d.ts', 'README.md', 'LICENSE']) {
+  for (const expected of [
+    'dist/index.js',
+    'dist/index.d.ts',
+    'dist/modules/account.js',
+    'dist/modules/admin.d.ts',
+    'dist/types/admin.d.ts',
+    'README.md',
+    'LICENSE',
+  ]) {
     assert(files.includes(expected), `Package is missing ${expected}`);
   }
   assert(
@@ -48,6 +56,10 @@ try {
 const { NebulaClient, ConflictError, ApiError, NetworkError, RequestAbortedError } = require('nebula-sdk-ts');
 const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
+assert.equal(typeof client.account.getSummary, 'function');
+for (const method of ['listUsers', 'getUser', 'getStats', 'suspendUser', 'activateUser', 'listAuditEvents']) {
+  assert.equal(typeof client.admin[method], 'function');
+}
 for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange']) {
   assert.equal(typeof client.auth[method], 'function');
 }
@@ -108,7 +120,20 @@ async function checkVerification() {
   assert.equal(pending.pending_email, 'new@example.test');
   assert.equal(pending.user, undefined);
 }
-Promise.all([checkImport(), checkVerification()]).catch((error) => { console.error(error); process.exitCode = 1; });
+async function checkManagement() {
+  const user = { user_id: 'owner', username: 'builder', email: 'owner@example.test', created_at: '2026-10-17T00:00:00Z', email_verified: false, verification_required: false, role: 'user', status: 'active', database_count: 1 };
+  const owner = new NebulaClient({ baseURL: 'http://localhost:8080', fetch: async (url, init) => {
+    assert.equal(init.headers.Authorization, 'Bearer package.jwt');
+    assert.equal(init.cache, 'no-store');
+    const data = url.endsWith('/account/summary') ? { summary: { database_count: 1, active_api_key_count: 0, ready_backup_count: 2 } } : { user: { ...user, status: url.endsWith('/suspend') ? 'suspended' : 'active', password_hash: 'must-not-escape' } };
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  } });
+  owner.setAuthToken('package.jwt');
+  assert.equal((await owner.account.getSummary()).summary.ready_backup_count, 2);
+  assert.equal((await owner.admin.suspendUser('owner')).user.status, 'suspended');
+  assert.equal((await owner.admin.getUser('owner')).user.password_hash, undefined);
+}
+Promise.all([checkImport(), checkVerification(), checkManagement()]).catch((error) => { console.error(error); process.exitCode = 1; });
 `
   );
   execFileSync(process.execPath, ['consumer.cjs'], { cwd: temporary, stdio: 'inherit' });
@@ -123,6 +148,31 @@ void client;
 void error;
 interface Item { item_key: string; label: string }
 async function checkContracts() {
+  const managementOptions: import('nebula-sdk-ts').ManagementRequestOptions = { timeout: 15000, signal: new AbortController().signal };
+  const summaryResponse: import('nebula-sdk-ts').AccountSummaryResponse = await client.account.getSummary(managementOptions);
+  const resourceCount: number = summaryResponse.summary.database_count;
+  const filters: import('nebula-sdk-ts').AdminUserListOptions = { q: 'builder', role: 'user', status: 'active', limit: 20 };
+  const accounts: import('nebula-sdk-ts').AdminUserListResponse = await client.admin.listUsers(filters, managementOptions);
+  const account: import('nebula-sdk-ts').AdminUserResponse = await client.admin.getUser('owner');
+  const role: import('nebula-sdk-ts').PlatformRole = account.user.role;
+  const status: import('nebula-sdk-ts').AccountStatus = account.user.status;
+  const platform: import('nebula-sdk-ts').PlatformStatsResponse = await client.admin.getStats();
+  const tableCount: number | null = platform.stats.total_tables;
+  const history: import('nebula-sdk-ts').AdminAuditListResponse = await client.admin.listAuditEvents({ action: 'suspend', actor_user_id: 'operator' });
+  await client.admin.suspendUser('owner', managementOptions);
+  await client.admin.activateUser('owner', managementOptions);
+  // @ts-expect-error A platform role cannot be assigned through a profile update.
+  await client.auth.updateProfile({ role: 'admin' });
+  // @ts-expect-error Summary scope comes from the JWT, not a supplied account ID.
+  await client.account.getSummary({ user_id: 'other' });
+  // @ts-expect-error Unsupported roles must not enter list filters.
+  await client.admin.listUsers({ role: 'owner' });
+  // @ts-expect-error Audit history covers access transitions only.
+  await client.admin.listAuditEvents({ action: 'delete' });
+  // @ts-expect-error Safe administrator metadata exposes no API key.
+  const credential: string = account.user.api_key;
+  void [resourceCount, accounts, role, status, tableCount, history, credential];
+
   const authOptions: import('nebula-sdk-ts').AuthRequestOptions = { timeout: 35000, signal: new AbortController().signal };
   const confirmed: import('nebula-sdk-ts').EmailVerificationResponse = await client.auth.verifyEmail('A'.repeat(43), authOptions);
   await client.auth.resendVerification('owner@example.test', authOptions);
