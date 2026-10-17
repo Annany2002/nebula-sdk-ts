@@ -1,6 +1,6 @@
 # Nebula TypeScript SDK
 
-JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, SQL, analytics, diagram, object, export, and managed backup modules using native Fetch.
+JavaScript/TypeScript client for the [Nebula backend](https://github.com/Annany2002/nebula-backend). It exposes authentication, database, schema, record, SQL, analytics, diagram, object, export, managed backup, account-summary and platform-administration modules using native Fetch.
 
 The [Nebula frontend](https://github.com/Annany2002/nebula-frontend) provides the web interface for database and account management.
 
@@ -89,6 +89,40 @@ Signup and login send no Authorization header. Account/profile, database creatio
 For data operations, a configured JWT takes precedence over the database API key. Call `client.setAuthToken(null)` to clear the session and use the configured database key again. Login returns a token; it does not set the session automatically. A rejected JWT is not retried with an API key.
 
 The client sends only standard API headers. Request timeouts cover receiving headers and reading the response body. Network failures preserve their cause, HTTP errors preserve status codes, and `409 Conflict` responses throw `ConflictError`. Requests are not retried automatically, including writes.
+
+### Account summary and administration (unreleased)
+
+The working branch adds `client.account` and `client.admin`; these are not part of npm 0.11.0. Their endpoints require the backend account-summary/administration batch. Older servers still support existing SDK methods but may omit profile roles or return `404` for new endpoints.
+
+```typescript
+const { summary } = await client.account.getSummary({ timeout: 15000 });
+// Counts only this JWT owner's databases, stored API keys and ready backup metadata.
+const profile = await client.auth.getMe();
+if (profile.role === 'admin') {
+  const { users, pagination } = await client.admin.listUsers({
+    q: 'builder',
+    role: 'user',
+    status: 'active',
+    limit: 20,
+    offset: 0,
+  });
+  const { stats } = await client.admin.getStats();
+  // stats.total_tables is null when any registered schema is unavailable.
+  const { events } = await client.admin.listAuditEvents({
+    action: 'suspend',
+    limit: 20,
+    offset: 0,
+  });
+}
+```
+
+`auth.getMe()` and successful immediate profile updates preserve `role: 'user' | 'admin'` when provided. Login and older servers omit it. Missing roles stay undefined; the SDK never infers membership from a JWT, email or API key. This field can guide navigation, while the server checks current membership on every admin request. Operators grant/revoke membership through the backend CLI; the SDK has no membership-grant operation.
+
+All account/admin methods require a JWT and never substitute a database key. List methods accept filters as their first argument and `{ signal, timeout }` as the second; detail/statistics/status methods accept request options after any account ID. Filters combine with AND. Search `q` is a literal username/email substring, at most 100 Unicode code points; ASCII matching is case-insensitive, and `%`, `_` and `\` are not wildcards. Audit actor/target IDs match exactly and accept at most 128 code points. Limits accept 1–100 (default 20); offsets accept 0–1,000,000 (default 0). Empty filter values, unknown option keys, malformed Unicode, control characters and encoded queries over 2,048 bytes are rejected. Each total/page shares one metadata snapshot; separate offset pages can shift under concurrent changes.
+
+Use `admin.getUser(id)` to inspect an account before explicitly calling `admin.suspendUser(id)` or `admin.activateUser(id)`. Suspension blocks protected JWT/API-key access and preserves data. Both actual transitions revoke earlier JWTs; activation requires a fresh login and preserves email-verification requirements. Existing database keys resume within their original scope. Administrator targets return `ConflictError` with `errorData.code === 'admin_account_protected'`. Current membership, suspension and session checks remain server-enforced, and no method reads another user's tenant rows.
+
+Status changes send one PUT without automatic retries. A timeout, cancellation, network error, malformed success response, or server error may leave the result unconfirmed: read `admin.getUser(id)` and check `admin.listAuditEvents()` before retrying. The SDK does not change its stored JWT automatically. Audit history contains only actual suspension/activation transitions, ordered by event ID descending, and retains recorded IDs after account deletion. Account totals count metadata, not file integrity or availability. Success responses expose only documented fields.
 
 ### Email verification
 
@@ -571,18 +605,20 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-| Module      | Methods                                                                                        |
-| ----------- | ---------------------------------------------------------------------------------------------- |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                             |
-| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey` |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                    |
-| `sql`       | `execute`                                                                                      |
-| `analytics` | `get`                                                                                          |
-| `diagrams`  | `get`                                                                                          |
-| `exports`   | `sql`, `sqlite`                                                                                |
-| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                         |
-| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                              |
+| Module      | Methods                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `account`   | `getSummary` (unreleased)                                                                         |
+| `admin`     | `listUsers`, `getUser`, `getStats`, `suspendUser`, `activateUser`, `listAuditEvents` (unreleased) |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                |
+| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`    |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                   |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                       |
+| `sql`       | `execute`                                                                                         |
+| `analytics` | `get`                                                                                             |
+| `diagrams`  | `get`                                                                                             |
+| `exports`   | `sql`, `sqlite`                                                                                   |
+| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                            |
+| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                 |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
@@ -635,6 +671,8 @@ npm ci
 `npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend revision pinned above.
 
 `npm run test:backend:backups` runs only the managed-backup suite using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. The default integration suite and CI also run these checks against the merged managed-backup revision pinned above.
+
+`npm run test:backend:management` runs the new management contracts against the local updated backend. It grants/revokes an administrator only through the operator CLI and only in disposable fixture storage. It verifies owner isolation, current roles, combined filters, pagination, protected targets, suspension/session revocation, activation and audit history. This suite is opt-in while the backend batch is unmerged. CI retains its older immutable backend pin; after the backend merges, update that pin and add `management` to the default integration suite before releasing these APIs.
 
 ### Pull request checks
 
