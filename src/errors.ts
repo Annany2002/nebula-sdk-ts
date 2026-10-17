@@ -97,12 +97,16 @@ export class BadRequestError extends ApiError {
 
 /** Error for rate limiting (429 Too Many Requests) */
 export class RateLimitError extends ApiError {
+  /** Server-provided delay (seconds or HTTP date); absent for missing/invalid headers. */
+  public readonly retryAfterSeconds?: number;
   constructor(
     message: string = 'Too many requests. Please wait and try again.',
-    errorData?: NebulaErrorResponse
+    errorData?: NebulaErrorResponse,
+    retryAfterSeconds?: number
   ) {
     super(message, 429, errorData);
     this.name = 'RateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
     Object.setPrototypeOf(this, RateLimitError.prototype);
   }
 }

@@ -354,3 +354,38 @@ describe('HTTP authentication and response boundaries', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Response contracts and server backoff', () => {
+  it.each(['60', '-1', '1.5'])('preserves Retry-After %s on rate-limit errors', async (value) => {
+    const fetchFn = jest.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: 'Wait', code: 'verification_rate_limited' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': value },
+      })
+    );
+    const error = await makeRequest('test', 'GET', mockContext(fetchFn)).catch(
+      (failure) => failure
+    );
+    expect(error).toBeInstanceOf(RateLimitError);
+    if (!(error instanceof RateLimitError)) throw error;
+    expect(error.retryAfterSeconds).toBe(value === '60' ? 60 : undefined);
+    expect(error.errorData?.code).toBe('verification_rate_limited');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates successful acknowledgements using their actual status before returning data', async () => {
+    const fetchFn = jest.fn().mockResolvedValue(createMockResponse(202, { message: 'Pending' }));
+    const parse = jest.fn((value: unknown, status: number) => ({ status, value }));
+    const result = await makeRequest(
+      'test',
+      'POST',
+      mockContext(fetchFn),
+      undefined,
+      {},
+      [200, 202],
+      parse
+    );
+    expect(result).toEqual({ status: 202, value: { message: 'Pending' } });
+    expect(parse).toHaveBeenCalledTimes(1);
+  });
+});
