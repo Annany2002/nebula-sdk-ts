@@ -27,7 +27,7 @@ const baselineSuites = [
   'management',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => !baselineSuites.includes(suite))) {
+if (suites.some((suite) => ![...baselineSuites, 'recovery'].includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
@@ -99,7 +99,7 @@ try {
       stdio: 'inherit',
     });
   const verificationBinary = join(temporary, 'nebula-verification');
-  if (suites.includes('verification')) {
+  if (suites.includes('verification') || suites.includes('recovery')) {
     const overlay = join(temporary, 'verification-overlay.json');
     const { writeFile } = await import('node:fs/promises');
     await writeFile(
@@ -122,7 +122,7 @@ try {
     logs = '';
     const port = await freePort();
     const url = `http://127.0.0.1:${port}`;
-    server = spawn(suite === 'verification' ? verificationBinary : binary, [], {
+    server = spawn(['verification', 'recovery'].includes(suite) ? verificationBinary : binary, [], {
       cwd: suiteDirectory,
       env: {
         ...process.env,
@@ -136,6 +136,15 @@ try {
         GIN_MODE: 'release',
         // Never inherit enabled SMTP/provider settings into isolated contract tests.
         EMAIL_VERIFICATION_ENABLED: 'false',
+        PASSWORD_RESET_ENABLED: suite === 'recovery' ? 'true' : 'false',
+        APP_PUBLIC_URL: 'http://localhost:3000',
+        SMTP_HOST: 'fixture.example.test',
+        SMTP_PORT: '587',
+        SMTP_USERNAME: 'fixture',
+        SMTP_PASSWORD: 'fixture',
+        SMTP_FROM: 'nebula@example.test',
+        SMTP_TLS_MODE: 'starttls',
+        SMTP_CA_FILE: '',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -164,6 +173,7 @@ try {
           ...process.env,
           NEBULA_TEST_URL: url,
           NEBULA_TEST_VERIFICATION: suite === 'verification' ? 'true' : 'false',
+          NEBULA_TEST_RECOVERY: suite === 'recovery' ? 'true' : 'false',
           NEBULA_TEST_MANAGEMENT: suite === 'management' ? 'true' : 'false',
           ...(suite === 'management' && {
             NEBULA_TEST_ADMIN_CLI: adminBinary,
