@@ -2,6 +2,8 @@
 import { makeRequest, RequestAuthentication, RequestContext } from '../http';
 import {
   AuthRequestOptions,
+  PasswordResetPayload,
+  PasswordRecoveryResponse,
   EmailChangePayload,
   EmailVerificationResponse,
   SignUpCredentials,
@@ -23,6 +25,7 @@ import {
   parseUser,
   parseVerificationResponse,
   validateEmail,
+  validatePasswordReset,
   validateVerificationToken,
 } from './auth-validation';
 
@@ -133,6 +136,40 @@ export class AuthModule {
       undefined,
       { email },
       [202],
+      parseVerificationResponse
+    );
+  }
+
+  /** Request a reset email. The generic acknowledgement is not an account or delivery oracle. */
+  async forgotPassword(
+    email: string,
+    options: AuthRequestOptions = {}
+  ): Promise<PasswordRecoveryResponse> {
+    validateEmail(email);
+    return makeRequest(
+      'auth/forgot-password',
+      'POST',
+      this.getRequestContext('none', options),
+      undefined,
+      { email },
+      [202],
+      parseVerificationResponse
+    );
+  }
+
+  /** Reset explicitly without retries or automatic sign-in. Clear any stored JWT after success. */
+  async resetPassword(
+    payload: PasswordResetPayload,
+    options: AuthRequestOptions = {}
+  ): Promise<PasswordRecoveryResponse> {
+    validatePasswordReset(payload);
+    return makeRequest(
+      'auth/reset-password',
+      'POST',
+      this.getRequestContext('none', options),
+      undefined,
+      { token: payload.token, password: payload.password },
+      [200],
       parseVerificationResponse
     );
   }
