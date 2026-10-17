@@ -13,6 +13,8 @@ import { DiagramModule } from './modules/diagram';
 import { ObjectsModule } from './modules/objects';
 import { ExportModule } from './modules/export';
 import { BackupModule } from './modules/backup';
+import { AccountModule } from './modules/account';
+import { AdminModule } from './modules/admin';
 
 /**
  * Main client class for interacting with the Nebula  API.
@@ -32,6 +34,8 @@ export class NebulaClient {
   public readonly objects: ObjectsModule;
   public readonly exports: ExportModule;
   public readonly backups: BackupModule;
+  public readonly account: AccountModule;
+  public readonly admin: AdminModule;
 
   /**
    * Creates an instance of the NebulaClient.
@@ -88,6 +92,8 @@ export class NebulaClient {
     this.objects = new ObjectsModule(context);
     this.exports = new ExportModule(context);
     this.backups = new BackupModule(context);
+    this.account = new AccountModule(context);
+    this.admin = new AdminModule(context);
   }
 
   /**

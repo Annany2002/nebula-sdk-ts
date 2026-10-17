@@ -81,7 +81,7 @@ export function parseSignup(value: unknown): SignupResponse {
   };
 }
 
-function parseUser(value: unknown): User {
+export function parseUser(value: unknown): User {
   const user = object(value);
   if (
     !user ||
@@ -99,11 +99,14 @@ function parseUser(value: unknown): User {
   )
     return invalidResponse();
   if (user.pending_email !== undefined && !nonempty(user.pending_email)) return invalidResponse();
+  if (user.role !== undefined && user.role !== 'user' && user.role !== 'admin')
+    return invalidResponse();
   return {
     userId: user.userId,
     email: user.email,
     username: user.username,
     createdAt: user.createdAt,
+    ...(user.role !== undefined && { role: user.role }),
     ...(user.email_verified !== undefined && { email_verified: user.email_verified as boolean }),
     ...(user.verification_required !== undefined && {
       verification_required: user.verification_required as boolean,

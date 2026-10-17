@@ -11,3 +11,5 @@ export * from './diagram';
 export * from './objects';
 export * from './export';
 export * from './backup';
+export * from './account';
+export * from './admin';

@@ -24,6 +24,7 @@ const baselineSuites = [
   'imports',
   'backups',
   'verification',
+  'management',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
 if (suites.some((suite) => !baselineSuites.includes(suite))) {
@@ -91,6 +92,12 @@ try {
   console.log('Building the local backend for isolated SDK integration tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
+  const adminBinary = join(temporary, 'nebula-admin');
+  if (suites.includes('management'))
+    await run('go', ['build', '-o', adminBinary, './cmd/admin'], {
+      cwd: backend,
+      stdio: 'inherit',
+    });
   const verificationBinary = join(temporary, 'nebula-verification');
   if (suites.includes('verification')) {
     const overlay = join(temporary, 'verification-overlay.json');
@@ -157,6 +164,12 @@ try {
           ...process.env,
           NEBULA_TEST_URL: url,
           NEBULA_TEST_VERIFICATION: suite === 'verification' ? 'true' : 'false',
+          NEBULA_TEST_MANAGEMENT: suite === 'management' ? 'true' : 'false',
+          ...(suite === 'management' && {
+            NEBULA_TEST_ADMIN_CLI: adminBinary,
+            NEBULA_TEST_METADATA: join(suiteDirectory, 'data', 'metadata.db'),
+            NEBULA_TEST_ROOT: temporary,
+          }),
         },
         stdio: 'inherit',
       }
