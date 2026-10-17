@@ -77,3 +77,14 @@ export interface AuthRequestOptions {
   /** Total request deadline, including the response body, in milliseconds. */
   timeout?: number;
 }
+
+/** A reset request never authenticates the caller or confirms inbox delivery. */
+export interface PasswordRecoveryResponse {
+  message: string;
+}
+
+/** Submit only the opaque token from the email fragment, never the full reset URL. */
+export interface PasswordResetPayload {
+  token: string;
+  password: string;
+}

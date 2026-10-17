@@ -132,3 +132,24 @@ export function parseProfileUpdate(
   if (target !== undefined && user.email !== target) return invalidResponse();
   return { message: result.message, user };
 }
+
+export function validatePasswordReset(payload: unknown): void {
+  const fields = object(payload);
+  if (!fields || Object.keys(fields).some((key) => !['token', 'password'].includes(key)))
+    throw new NebulaError('Password reset accepts only token and password.');
+  if (
+    typeof fields.token !== 'string' ||
+    !/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/.test(fields.token)
+  )
+    throw new NebulaError('Provide the password reset token from the email, not its URL.');
+  const password = fields.password;
+  if (
+    typeof password !== 'string' ||
+    Array.from(password).length < 8 ||
+    new TextEncoder().encode(password).length > 72 ||
+    /[\uD800-\uDFFF]/u.test(password)
+  )
+    throw new NebulaError(
+      'Password must contain at least 8 characters and at most 72 UTF-8 bytes.'
+    );
+}

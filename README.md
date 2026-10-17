@@ -177,9 +177,32 @@ Signup, login, profile reads/updates and the new verification methods accept opt
 
 Email-verification integration runs by default in `npm run test:backend` and CI. Run `npm run test:backend:verification` for that suite alone. It uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files.
 
+### Password recovery (unreleased)
+
+The unreleased source includes `auth.forgotPassword()` and `auth.resetPassword()`; these methods are not in published SDK 0.12.0. They require the password-recovery backend endpoints and `PASSWORD_RESET_ENABLED=true` with configured SMTP. Recovery can run independently of signup verification. See the [backend contract](https://github.com/Annany2002/nebula-backend/blob/main/docs/api-reference/password-recovery.mdx).
+
+```typescript
+await client.auth.forgotPassword('builder@example.com', { timeout: 15000 });
+// Read the opaque token from the email fragment and remove it from the URL before analytics.
+// Submit explicitly after the user enters and confirms their new password.
+async function completePasswordReset(token: string, password: string) {
+  await client.auth.resetPassword({ token, password });
+  client.setAuthToken(null);
+  // Sign in separately; recovery does not create or replace the SDK's stored session.
+}
+```
+
+Both calls are public, omit JWT/API-key authorization and browser credentials, disable caching and redirects, and never retry automatically. `forgotPassword()` expects `202`; `resetPassword()` expects `200`. Each returns only `{ message }`, with no token or user metadata. Request acknowledgement confirms neither account existence nor delivery. Options support cancellation and a total deadline including the body.
+
+Use the raw canonical token, not its URL. Passwords must contain at least eight Unicode characters and at most 72 UTF-8 bytes. A successful reset revokes existing JWT sessions and pending account links; API keys, tenant data, verification requirements and suspension policy are preserved. Clear your application's stored JWT and sign in again. Password-change notification is best effort.
+
+Read `error.errorData?.code` for `invalid_password_reset_token`, `password_reset_disabled`, `password_reset_busy` and `password_reset_rate_limited`; honor `RateLimitError.retryAfterSeconds`. Network failures, timeouts and server failures can leave a reset uncertain. Try signing in with the new password before requesting another link; never retry a credential write automatically. A used-token error after an uncertain response does not prove that the password was unchanged.
+
+Password-recovery integration runs by default in `npm run test:backend` and CI against the merged backend revision pinned below. Run `npm run test:backend:recovery` for that suite alone. It uses disposable SQLite data and captured in-memory mail; it sends no real email and requires no SMTP credentials.
+
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `2a94edf32cffc702168b07616613414227e1e165`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -605,6 +628,8 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
+The table describes the published SDK. The [unreleased recovery methods](#password-recovery-unreleased) are documented separately above.
+
 | Module      | Methods                                                                                            |
 | ----------- | -------------------------------------------------------------------------------------------------- |
 | `account`   | `getSummary` (SDK 0.12.0+)                                                                         |
@@ -666,13 +691,13 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, SQLite import and managed-backup integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, SQLite import, managed-backup, email-verification, platform-management and password-recovery integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 `npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend revision pinned above.
 
 `npm run test:backend:backups` runs only the managed-backup suite using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. The default integration suite and CI also run these checks against the merged managed-backup revision pinned above.
 
-`npm run test:backend:management` runs the new management contracts against the local updated backend. It grants/revokes an administrator only through the operator CLI and only in disposable fixture storage. It verifies owner isolation, current roles, combined filters, pagination, protected targets, suspension/session revocation, activation and audit history. The default integration command and CI include this suite against backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1`.
+`npm run test:backend:management` runs the new management contracts against the local updated backend. It grants/revokes an administrator only through the operator CLI and only in disposable fixture storage. It verifies owner isolation, current roles, combined filters, pagination, protected targets, suspension/session revocation, activation and audit history. The default integration command and CI include this suite against the backend revision pinned above.
 
 ### Pull request checks
 

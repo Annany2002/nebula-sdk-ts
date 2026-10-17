@@ -60,7 +60,7 @@ assert.equal(typeof client.account.getSummary, 'function');
 for (const method of ['listUsers', 'getUser', 'getStats', 'suspendUser', 'activateUser', 'listAuditEvents']) {
   assert.equal(typeof client.admin[method], 'function');
 }
-for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange']) {
+for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange', 'forgotPassword', 'resetPassword']) {
   assert.equal(typeof client.auth[method], 'function');
 }
 assert.equal(typeof client.records.list, 'function');
@@ -140,7 +140,15 @@ Promise.all([checkImport(), checkVerification(), checkManagement()]).catch((erro
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, CreateIndexPayload, CreateIndexResponse, DropIndexResponse, TriggerEvent, TriggerTiming, CreateTriggerPayload, CreateTriggerResponse, DropTriggerResponse, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
+    `async function checkRecoveryTypes(recoveryClient: import('nebula-sdk-ts').NebulaClient) {
+ const payload: PasswordResetPayload = { token: 'A'.repeat(43), password: 'sdk-new-password' };
+ const request: PasswordRecoveryResponse = await recoveryClient.auth.forgotPassword('owner@example.test', { timeout: 1000 });
+ const response: PasswordRecoveryResponse = await recoveryClient.auth.resetPassword(payload, { signal: new AbortController().signal });
+ void [request, response];
+}
+void checkRecoveryTypes;
+import type { PasswordResetPayload, PasswordRecoveryResponse } from 'nebula-sdk-ts';
+import { NebulaClient, NebulaClientConfig, ConflictError, ApiError, RecordListResponse, RecordMutationResponse, SchemaCreateResponse, SchemaInfoResponse, TableListResponse, ApiKeyMetadataResponse, ApiKeyResponse, SignupResponse, User, ProtectedHealthResponse, SQLQueryResult, DatabaseAnalytics, ServiceMetrics, ServiceMetricBucket, AdvisorIssue, SchemaDiagram, TableDiagramInfo, ForeignKeyInfo, TableColumnInfo, ForeignKeyAction, DatabaseObjects, IndexInfo, TriggerInfo, CreateIndexPayload, CreateIndexResponse, DropIndexResponse, TriggerEvent, TriggerTiming, CreateTriggerPayload, CreateTriggerResponse, DropTriggerResponse, SQLExport, SQLiteExport, DatabaseDetails, DatabaseDetailsResponse, AlterColumnDefinition, AlterTableOperation, AlterTablePayload, AlterTableResponse } from 'nebula-sdk-ts';
 const config: NebulaClientConfig = { baseURL: 'http://localhost:8080' };
 const client: NebulaClient = new NebulaClient(config);
 const error: ApiError = new ConflictError('duplicate');
