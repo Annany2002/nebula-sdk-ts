@@ -92,7 +92,7 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ### Account summary and administration (unreleased)
 
-The working branch adds `client.account` and `client.admin`; these are not part of npm 0.11.0. Their endpoints require the backend account-summary/administration batch. Older servers still support existing SDK methods but may omit profile roles or return `404` for new endpoints.
+The working branch adds `client.account` and `client.admin`; these are not part of npm 0.11.0. Their endpoints require backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. Older servers still support existing SDK methods but may omit profile roles or return `404` for new endpoints.
 
 ```typescript
 const { summary } = await client.account.getSummary({ timeout: 15000 });
@@ -179,7 +179,7 @@ Email-verification integration runs by default in `npm run test:backend` and CI.
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `df3db62cfff1da463294e46550e1d6688304fbb5`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -455,7 +455,7 @@ Both methods accept owner JWTs or database-scoped API keys and use the existing 
 
 ### Create and drop triggers
 
-Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin the newer managed-backup revision listed above.
+Native trigger management is available in SDK 0.8.0 and later and requires backend revision `264e53b2e72f4a4718f8a50d418ec14c525216f3` or later. CI integration tests pin the newer account/administration revision listed above.
 
 ```typescript
 const createdTrigger = await client.objects.createTrigger('myapp', {
@@ -672,7 +672,7 @@ npm ci
 
 `npm run test:backend:backups` runs only the managed-backup suite using disposable storage. It covers native metadata, WAL rows, snapshot replay, verified downloads, restored SQLite objects and sequences, empty databases, owner isolation, deleted sources and deleted-ID reservation. The default integration suite and CI also run these checks against the merged managed-backup revision pinned above.
 
-`npm run test:backend:management` runs the new management contracts against the local updated backend. It grants/revokes an administrator only through the operator CLI and only in disposable fixture storage. It verifies owner isolation, current roles, combined filters, pagination, protected targets, suspension/session revocation, activation and audit history. This suite is opt-in while the backend batch is unmerged. CI retains its older immutable backend pin; after the backend merges, update that pin and add `management` to the default integration suite before releasing these APIs.
+`npm run test:backend:management` runs the new management contracts against the local updated backend. It grants/revokes an administrator only through the operator CLI and only in disposable fixture storage. It verifies owner isolation, current roles, combined filters, pagination, protected targets, suspension/session revocation, activation and audit history. The default integration command and CI include this suite against backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1`.
 
 ### Pull request checks
 

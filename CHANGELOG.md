@@ -6,13 +6,13 @@
 
 - Owner-JWT `account.getSummary()` and platform-admin `admin.listUsers()`, `getUser()`, `getStats()`, `suspendUser()`, `activateUser()` and `listAuditEvents()`, with typed filters, pagination, cancellation and deadlines.
 - Optional current profile roles, safe response projection, strict metadata/identity/completeness checks, and local validation of administrator filters.
-- Unit tests, installed JavaScript/TypeScript consumer checks and opt-in isolated management integration using the operator CLI only on disposable data.
+- Unit tests, installed JavaScript/TypeScript consumer checks and isolated management integration using the operator CLI only on disposable data.
 
 ### Changed
 
 - `auth.getMe()` validates the documented profile fields and preserves optional membership without adding a role to login responses or assuming a role for older servers.
 
-The new endpoints depend on the unmerged backend API batch. The management integration suite is verified locally but remains opt-in until CI can pin the merged backend revision. No package version change or publication is included.
+The new endpoints require backend revision `0449778897e971ce48f712b5913f6deb14bcb5b1` or later. CI pins this revision and includes management in the default integration suite. No package version change or publication is included.
 
 ## 0.11.0 - 2026-10-17
 

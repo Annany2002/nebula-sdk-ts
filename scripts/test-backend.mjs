@@ -24,11 +24,10 @@ const baselineSuites = [
   'imports',
   'backups',
   'verification',
+  'management',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-// Management stays opt-in until the backend batch is merged and CI can pin its immutable revision.
-const supportedSuites = [...baselineSuites, 'management'];
-if (suites.some((suite) => !supportedSuites.includes(suite))) {
+if (suites.some((suite) => !baselineSuites.includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
