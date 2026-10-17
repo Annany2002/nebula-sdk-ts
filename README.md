@@ -92,6 +92,8 @@ The client sends only standard API headers. Request timeouts cover receiving hea
 
 ### Email verification
 
+Available in SDK **0.11.0 and later**, with backend revision `df3db62cfff1da463294e46550e1d6688304fbb5` or later.
+
 On a verification-enabled server, `auth.signup()` returns `verification_required: true` and `verification_delivery: 'sent' | 'unconfirmed'`. The account already exists even when delivery is unconfirmed: request another email instead of repeating signup. Signup never issues a JWT. Older servers omit these fields and keep their existing registration behavior.
 
 ```typescript
@@ -505,7 +507,7 @@ Call `controller.abort()` to cancel, which throws `RequestAbortedError` (a `Netw
 
 ## Managed backups
 
-This module requires **SDK 0.10.0 or later** and backend revision `ecede100d8747a53405364bcf14d00759f92a545` or later. CI verifies its contracts against that merged revision as part of the default backend integration suite.
+This module requires **SDK 0.10.0 or later** and backend revision `ecede100d8747a53405364bcf14d00759f92a545` or later. CI verifies its contracts in the default integration suite against the pinned backend revision listed above.
 
 Every `client.backups` method requires the owner's JWT. API keys cannot manage backups. Create one UUID per creation intent and persist it before sending a request:
 
