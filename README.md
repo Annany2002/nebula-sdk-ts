@@ -139,11 +139,11 @@ After confirming an email change, previous JWT sessions are revoked; clear the S
 
 Signup, login, profile reads/updates and the new verification methods accept optional `AuthRequestOptions` (`signal`, `timeout`). `RateLimitError.retryAfterSeconds` exposes valid `Retry-After` seconds or HTTP dates; it is undefined when the header is missing/invalid. Respect the delay in your application; the SDK never sleeps or retries automatically. Browser clients can read this header only when the backend exposes it through CORS.
 
-For local contract checks, run `npm run test:backend:verification` against a backend with email-verification support. This suite uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files. The existing CI backend baseline remains pinned below; the verification suite is opt-in until that baseline includes these endpoints.
+Email-verification integration runs by default in `npm run test:backend` and CI. Run `npm run test:backend:verification` for that suite alone. It uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files.
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `ecede100d8747a53405364bcf14d00759f92a545`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `df3db62cfff1da463294e46550e1d6688304fbb5`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.

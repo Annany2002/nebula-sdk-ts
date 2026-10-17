@@ -13,7 +13,7 @@
 - Email-capable `auth.updateProfile()` calls return an updated user or a pending-email acknowledgement. Narrow with `'pending_email' in result` before reading `result.user`; username-only updates retain their existing response type.
 - Auth requests omit browser credentials, disable caching and reject redirects. Signup and email-change acknowledgements are checked before being returned to callers; legacy registration and immediate-update responses remain supported.
 
-The new verification endpoints require an email-verification-capable backend. The integration baseline pin will be updated after that backend change is merged; the verification integration suite is currently opt-in.
+The new verification endpoints require backend revision `df3db62cfff1da463294e46550e1d6688304fbb5` or later. CI pins this revision and includes verification integration in the default backend contract suite.
 
 ## 0.10.0 - 2026-10-10
 
