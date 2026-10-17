@@ -90,9 +90,60 @@ For data operations, a configured JWT takes precedence over the database API key
 
 The client sends only standard API headers. Request timeouts cover receiving headers and reading the response body. Network failures preserve their cause, HTTP errors preserve status codes, and `409 Conflict` responses throw `ConflictError`. Requests are not retried automatically, including writes.
 
+### Email verification
+
+On a verification-enabled server, `auth.signup()` returns `verification_required: true` and `verification_delivery: 'sent' | 'unconfirmed'`. The account already exists even when delivery is unconfirmed: request another email instead of repeating signup. Signup never issues a JWT. Older servers omit these fields and keep their existing registration behavior.
+
+```typescript
+const registration = await client.auth.signup({
+  username: 'builder',
+  email: 'builder@example.com',
+  password,
+});
+if (registration.verification_required) {
+  // Show the confirmation screen; SMTP acceptance does not guarantee inbox delivery.
+}
+await client.auth.resendVerification('builder@example.com');
+
+// After the user explicitly confirms the link, pass its token, not the full URL.
+await client.auth.verifyEmail(tokenFromEmail);
+// Verification does not sign in or alter the SDK session automatically.
+client.setAuthToken(null);
+```
+
+Both verification methods are public: they send no JWT/API key, put the token or email only in the JSON body, and neither store verification tokens nor retry requests. Auth requests omit browser credentials, disable caching, and reject redirects. Keep verification tokens out of URL queries, logs, analytics and persistent browser storage. The application is responsible for extracting/removing the email-link fragment before analytics runs and asking the user to confirm it.
+
+`auth.resendVerification()` returns a generic acknowledgement for both known and unknown addresses, not a delivery guarantee. Pending accounts cannot log in: the SDK throws `ForbiddenError` with `error.errorData?.code === 'email_verification_required'`. Expired/reused links return `BadRequestError` with code `invalid_verification_token`; older servers without these endpoints return `NotFoundError`.
+
+Profiles expose optional `email_verified`, `verification_required` and `pending_email`. Missing fields on an older server do not imply verification. An existing account may have `email_verified: false` and `verification_required: false` while retaining access.
+
+### Email changes
+
+```typescript
+const change = await client.auth.requestEmailChange({
+  email: 'new@example.com',
+  current_password: password,
+});
+if ('pending_email' in change) {
+  // HTTP 202: keep the current email/session active while confirmation is pending.
+  showPendingAddress(change.pending_email);
+} else {
+  // HTTP 200: immediate update on a verification-disabled/legacy server.
+  showUpdatedProfile(change.user);
+}
+```
+
+Username-only `auth.updateProfile({ username })` still returns an updated user. Calls that may change email now return `UpdateProfileResponse`: narrow with `'pending_email' in result` before reading `result.user`. This is a type-level compatibility change for existing email-update callers; the SDK no longer describes a pending change as completed. Verification-enabled servers require changing email separately from username, and reject missing/incorrect current passwords with `AuthError` and code `reauthentication_required`.
+
+After confirming an email change, previous JWT sessions are revoked; clear the SDK token and sign in using the new address. Database API keys remain valid. The SDK leaves session changes explicit, just as it does for login. `503` delivery/disabled/busy errors preserve their machine codes in `errorData.code`. A network failure, timeout or cancellation can happen after a write takes effect: check account state before retrying.
+
+Signup, login, profile reads/updates and the new verification methods accept optional `AuthRequestOptions` (`signal`, `timeout`). `RateLimitError.retryAfterSeconds` exposes valid `Retry-After` seconds or HTTP dates; it is undefined when the header is missing/invalid. Respect the delay in your application; the SDK never sleeps or retries automatically. Browser clients can read this header only when the backend exposes it through CORS.
+
+Email-verification integration runs by default in `npm run test:backend` and CI. Run `npm run test:backend:verification` for that suite alone. It uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files.
+
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `ecede100d8747a53405364bcf14d00759f92a545`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `df3db62cfff1da463294e46550e1d6688304fbb5`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.

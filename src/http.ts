@@ -22,6 +22,9 @@ export interface RequestContext extends NebulaClientConfig {
   authToken?: string | null;
   authentication?: RequestAuthentication;
   signal?: AbortSignal;
+  cache?: RequestCache;
+  credentials?: RequestCredentials;
+  redirect?: RequestRedirect;
 }
 
 function authorization(context: RequestContext): string | undefined {
@@ -43,7 +46,7 @@ function errorData(value: unknown, status: number): NebulaErrorResponse {
   return { error: `HTTP error! Status: ${status}` };
 }
 
-function throwApiError(status: number, data: NebulaErrorResponse): never {
+function throwApiError(status: number, data: NebulaErrorResponse, headers: Headers): never {
   switch (status) {
     case 400:
       throw new BadRequestError(data.error, data);
@@ -56,11 +59,24 @@ function throwApiError(status: number, data: NebulaErrorResponse): never {
     case 409:
       throw new ConflictError(data.error, data);
     case 429:
-      throw new RateLimitError(data.error, data);
+      throw new RateLimitError(data.error, data, retryAfterSeconds(headers.get('retry-after')));
     default:
       if (status >= 500) throw new ServerError(data.error, status, data);
       throw new ApiError(data.error, status, data);
   }
+}
+
+function retryAfterSeconds(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const text = value.trim();
+  if (/^\d+$/.test(text)) {
+    const seconds = Number(text);
+    return Number.isSafeInteger(seconds) ? seconds : undefined;
+  }
+  // Do not interpret signed/fractional numbers as JavaScript's permissive date syntax.
+  if (!/^[A-Za-z]{3}, /.test(text)) return undefined;
+  const date = Date.parse(text);
+  return Number.isFinite(date) ? Math.max(0, Math.ceil((date - Date.now()) / 1000)) : undefined;
 }
 
 async function readResponse(response: Response): Promise<unknown> {
@@ -90,7 +106,8 @@ export async function makeRequest<T>(
   context: RequestContext,
   queryParams?: Record<string, string | number | boolean>,
   body?: unknown,
-  expectedStatuses?: readonly number[]
+  expectedStatuses?: readonly number[],
+  parse?: (value: unknown, status: number) => T
 ): Promise<T> {
   return sendRequest(
     path,
@@ -101,7 +118,8 @@ export async function makeRequest<T>(
     'application/json',
     async (response) => {
       checkStatus(response, expectedStatuses);
-      return (await readResponse(response)) as T;
+      const value = await readResponse(response);
+      return parse ? parse(value, response.status) : (value as T);
     },
     body === undefined ? undefined : 'application/json'
   );
@@ -246,11 +264,14 @@ async function sendRequest<T>(
       headers,
       body,
       signal: controller.signal,
+      ...(context.cache && { cache: context.cache }),
+      ...(context.credentials && { credentials: context.credentials }),
+      ...(context.redirect && { redirect: context.redirect }),
     });
     if (controller.signal.aborted) throw new Error('Request aborted.');
     if (!response.ok) {
       const result = await readResponse(response);
-      throwApiError(response.status, errorData(result, response.status));
+      throwApiError(response.status, errorData(result, response.status), response.headers);
     }
     const result = await readResult(response);
     if (controller.signal.aborted) throw new Error('Request aborted.');

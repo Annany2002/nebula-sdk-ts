@@ -26,6 +26,9 @@ export interface LoginResponse {
 export interface SignupResponse {
   message: string;
   user_id: string;
+  verification_required?: boolean;
+  /** SMTP acceptance only; neither value guarantees inbox delivery. */
+  verification_delivery?: 'sent' | 'unconfirmed';
 }
 
 export type UserInfo = User;
@@ -39,10 +42,38 @@ export type ProtectedHealthResponse =
 export interface UpdateProfilePayload {
   username?: string;
   email?: string;
+  /** Required by verification-enabled servers when changing email. */
+  current_password?: string;
 }
 
 /** Response from a successful profile update */
 export interface UserProfileResponse {
   message: string;
   user: UserInfo;
+}
+
+/** HTTP 202: the current email and session remain active until confirmation. */
+export interface PendingEmailChangeResponse {
+  message: string;
+  pending_email: string;
+}
+
+/** Narrow with 'pending_email' in response before reading an updated user. */
+export type UpdateProfileResponse = UserProfileResponse | PendingEmailChangeResponse;
+
+export interface EmailChangePayload {
+  email: string;
+  current_password: string;
+}
+
+/** Public verification/resend acknowledgements never contain a login session. */
+export interface EmailVerificationResponse {
+  message: string;
+}
+
+export interface AuthRequestOptions {
+  /** Cancels waiting only; the server may already have processed a write. */
+  signal?: AbortSignal;
+  /** Total request deadline, including the response body, in milliseconds. */
+  timeout?: number;
 }

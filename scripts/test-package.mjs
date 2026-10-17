@@ -48,6 +48,9 @@ try {
 const { NebulaClient, ConflictError, ApiError, NetworkError, RequestAbortedError } = require('nebula-sdk-ts');
 const client = new NebulaClient({ baseURL: 'http://localhost:8080' });
 assert.equal(typeof client.auth.login, 'function');
+for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange']) {
+  assert.equal(typeof client.auth[method], 'function');
+}
 assert.equal(typeof client.records.list, 'function');
 assert.equal(typeof client.databases.get, 'function');
 assert.equal(typeof client.databases.importSQLite, 'function');
@@ -86,7 +89,26 @@ async function checkImport() {
   assert.equal((await owner.databases.importSQLite({ db_name: 'restored', file: bytes })).size_bytes, 512);
   assert.equal(requests, 1);
 }
-checkImport().catch((error) => { console.error(error); process.exitCode = 1; });
+async function checkVerification() {
+  const token = 'A'.repeat(43);
+  const owner = new NebulaClient({ baseURL: 'http://localhost:8080', fetch: async (url, init) => {
+    if (url.endsWith('/auth/verify-email')) {
+      assert.equal(init.headers.Authorization, undefined);
+      assert.deepEqual(JSON.parse(init.body), { token });
+      return new Response(JSON.stringify({ message: 'Verified' }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    assert.equal(init.headers.Authorization, 'Bearer package.jwt');
+    assert.deepEqual(JSON.parse(init.body), { email: 'new@example.test', current_password: 'package-password' });
+    return new Response(JSON.stringify({ message: 'Pending', pending_email: 'new@example.test' }), { status: 202, headers: { 'Content-Type': 'application/json' } });
+  } });
+  owner.setAuthToken('package.jwt');
+  assert.equal((await owner.auth.verifyEmail(token)).message, 'Verified');
+  assert.equal(owner.getAuthToken(), 'package.jwt');
+  const pending = await owner.auth.requestEmailChange({ email: 'new@example.test', current_password: 'package-password' });
+  assert.equal(pending.pending_email, 'new@example.test');
+  assert.equal(pending.user, undefined);
+}
+Promise.all([checkImport(), checkVerification()]).catch((error) => { console.error(error); process.exitCode = 1; });
 `
   );
   execFileSync(process.execPath, ['consumer.cjs'], { cwd: temporary, stdio: 'inherit' });
@@ -101,6 +123,26 @@ void client;
 void error;
 interface Item { item_key: string; label: string }
 async function checkContracts() {
+  const authOptions: import('nebula-sdk-ts').AuthRequestOptions = { timeout: 35000, signal: new AbortController().signal };
+  const confirmed: import('nebula-sdk-ts').EmailVerificationResponse = await client.auth.verifyEmail('A'.repeat(43), authOptions);
+  await client.auth.resendVerification('owner@example.test', authOptions);
+  const emailChange: import('nebula-sdk-ts').EmailChangePayload = { email: 'new@example.test', current_password: 'current-password' };
+  const profileChange: import('nebula-sdk-ts').UpdateProfileResponse = await client.auth.requestEmailChange(emailChange, authOptions);
+  if ('pending_email' in profileChange) {
+    const pending: string = profileChange.pending_email;
+    // @ts-expect-error A pending email change has no updated user.
+    const premature: User = profileChange.user;
+    void [pending, premature];
+  } else {
+    const immediate: User = profileChange.user;
+    void immediate;
+  }
+  const usernameChange: import('nebula-sdk-ts').UserProfileResponse = await client.auth.updateProfile({ username: 'builder' });
+  const maybePending = await client.auth.updateProfile({ email: 'new@example.test', current_password: 'current-password' });
+  // @ts-expect-error Email changes must be narrowed before reading an updated user.
+  const prematureUser: User = maybePending.user;
+  const wait: number | undefined = new (await import('nebula-sdk-ts')).RateLimitError().retryAfterSeconds;
+  void [confirmed, usernameChange, prematureUser, wait];
   const backupOptions: import('nebula-sdk-ts').BackupRequestOptions = { timeout: 60000, signal: new AbortController().signal };
   const backupPayload: import('nebula-sdk-ts').CreateBackupPayload = { backup_id: '12345678-1234-1234-1234-123456789abc' };
   const backupResult: import('nebula-sdk-ts').BackupResponse = await client.backups.create('app', backupPayload, backupOptions);
