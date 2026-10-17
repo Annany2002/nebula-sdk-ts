@@ -9,7 +9,22 @@ describe('Endpoint authentication policy', () => {
   beforeEach(() => {
     mockFetch.mockReset();
     client.setAuthToken(jwt);
-    mockFetch.mockImplementation(async () => mockResponse(200, {}));
+    mockFetch.mockImplementation(async (url, init) => {
+      if (String(url).endsWith('/auth/signup'))
+        return mockResponse(201, { message: 'Created', user_id: 'current-user' });
+      if (String(url).endsWith('/api/v1/account/user/me') && init?.method === 'PUT') {
+        return mockResponse(200, {
+          message: 'Updated',
+          user: {
+            userId: 'current-user',
+            username: 'builder',
+            email: 'builder@example.test',
+            createdAt: '2026-10-01',
+          },
+        });
+      }
+      return mockResponse(200, {});
+    });
   });
 
   it.each([

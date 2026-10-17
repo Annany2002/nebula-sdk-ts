@@ -9,6 +9,11 @@ export interface NebulaErrorResponse {
 }
 
 export interface User {
+  /** Optional on older servers. False does not by itself mean access is restricted. */
+  email_verified?: boolean;
+  verification_required?: boolean;
+  /** Requested replacement; email remains the current address until confirmation. */
+  pending_email?: string;
   createdAt: string;
   email: string;
   userId: string;

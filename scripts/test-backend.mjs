@@ -25,7 +25,7 @@ const baselineSuites = [
   'backups',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => !baselineSuites.includes(suite))) {
+if (suites.some((suite) => ![...baselineSuites, 'verification'].includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
@@ -90,6 +90,23 @@ try {
   console.log('Building the local backend for isolated SDK integration tests…');
   const binary = join(temporary, 'nebula-backend');
   await run('go', ['build', '-o', binary, './cmd/server'], { cwd: backend, stdio: 'inherit' });
+  const verificationBinary = join(temporary, 'nebula-verification');
+  if (suites.includes('verification')) {
+    const overlay = join(temporary, 'verification-overlay.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(
+      overlay,
+      JSON.stringify({
+        Replace: {
+          [join(backend, 'cmd/server/main.go')]: join(sdk, 'test/fixtures/email-server.go'),
+        },
+      })
+    );
+    await run('go', ['build', '-overlay', overlay, '-o', verificationBinary, './cmd/server'], {
+      cwd: backend,
+      stdio: 'inherit',
+    });
+  }
   for (const suite of suites) {
     // Separate servers keep each suite below the real per-IP rate limit.
     const suiteDirectory = join(temporary, suite);
@@ -97,7 +114,7 @@ try {
     logs = '';
     const port = await freePort();
     const url = `http://127.0.0.1:${port}`;
-    server = spawn(binary, [], {
+    server = spawn(suite === 'verification' ? verificationBinary : binary, [], {
       cwd: suiteDirectory,
       env: {
         ...process.env,
@@ -109,6 +126,8 @@ try {
         DATABASE_DIRECTORY_FILE: 'metadata.db',
         ALLOWED_ORIGINS: 'http://localhost:3000',
         GIN_MODE: 'release',
+        // Never inherit enabled SMTP/provider settings into isolated contract tests.
+        EMAIL_VERIFICATION_ENABLED: 'false',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -133,7 +152,11 @@ try {
       ],
       {
         cwd: sdk,
-        env: { ...process.env, NEBULA_TEST_URL: url },
+        env: {
+          ...process.env,
+          NEBULA_TEST_URL: url,
+          NEBULA_TEST_VERIFICATION: suite === 'verification' ? 'true' : 'false',
+        },
         stdio: 'inherit',
       }
     );
