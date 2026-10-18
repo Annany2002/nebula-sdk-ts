@@ -247,7 +247,7 @@ Run `npm run test:backend:github` against a local checkout containing the OAuth 
 
 ### Profile photos and onboarding (unreleased)
 
-Requires a backend with the profile-avatar routes. These methods are not included in npm version 0.13.0.
+Requires backend revision `b30b6c383314d42290efe7bec2f4f6655657153b` or later. These methods are not included in npm version 0.13.0.
 
 ```typescript
 // File extends Blob in the browser. Node applications can create a Blob from image bytes.
@@ -262,11 +262,11 @@ All three methods require an owner JWT set with `client.setAuthToken(...)`. They
 
 Uploads accept JPEG, PNG or WebP up to 2 MiB. The server validates content and dimensions, strips metadata and stores a 256px JPEG. Photos are public; replacement/removal invalidates the previous asset URL. Do not put private images in profile photos. After an uncertain write, read `auth.getMe()` before deciding whether to retry.
 
-Run `node scripts/test-backend.mjs avatars` against the adjacent updated backend checkout for the isolated avatar contract suite. The default CI backend pin remains the last merged OAuth revision until the avatar backend is merged; the avatar suite is currently opt-in.
+Run `node scripts/test-backend.mjs avatars` for the isolated avatar contract suite. Avatar integration also runs by default in `npm run test:backend` and CI against the merged backend revision pinned below.
 
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `10efe63ba1c07a9fe0588318227f3f228a79961b`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `b30b6c383314d42290efe7bec2f4f6655657153b`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
