@@ -39,6 +39,9 @@ suite('Existing SDK contracts against the local Go backend', () => {
       createdAt: expect.any(String),
       email_verified: false,
       verification_required: false,
+      avatar_url: '',
+      avatar_source: '',
+      onboarding_completed: false,
     });
     token = login.token;
     account.setAuthToken(token);

@@ -27,6 +27,7 @@ const baselineSuites = [
   'management',
   'recovery',
   'github',
+  'avatars',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
 if (suites.some((suite) => !baselineSuites.includes(suite))) {

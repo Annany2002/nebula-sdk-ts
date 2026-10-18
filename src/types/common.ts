@@ -11,6 +11,11 @@ export interface NebulaErrorResponse {
 }
 
 export interface User {
+  /** GitHub HTTPS image URL, relative /avatars/<asset-id>, or empty when unset. Optional on older servers. */
+  avatar_url?: string;
+  avatar_source?: '' | 'github' | 'upload' | 'none';
+  /** Server-persisted completion, including explicit skip. Optional on older servers. */
+  onboarding_completed?: boolean;
   /** Current profile membership; omitted by older servers and the login response. */
   role?: PlatformRole;
   /** Optional on older servers. False does not by itself mean access is restricted. */

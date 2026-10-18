@@ -77,7 +77,7 @@ jobs:
         with:
           repository: Annany2002/nebula-backend
           # Update deliberately when aligning the SDK with a new backend contract.
-          ref: 10efe63ba1c07a9fe0588318227f3f228a79961b
+          ref: b30b6c383314d42290efe7bec2f4f6655657153b
           path: nebula-backend
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6

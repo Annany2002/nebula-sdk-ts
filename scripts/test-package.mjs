@@ -62,7 +62,7 @@ assert.equal(typeof client.account.getSummary, 'function');
 for (const method of ['listUsers', 'getUser', 'getStats', 'suspendUser', 'activateUser', 'listAuditEvents']) {
   assert.equal(typeof client.admin[method], 'function');
 }
-for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange', 'forgotPassword', 'resetPassword', 'getProviders', 'startGitHubSignIn', 'completeGitHubSignIn', 'startGitHubLink', 'completeGitHubLink']) {
+for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange', 'forgotPassword', 'resetPassword', 'getProviders', 'startGitHubSignIn', 'completeGitHubSignIn', 'startGitHubLink', 'completeGitHubLink', 'uploadAvatar', 'removeAvatar', 'completeOnboarding']) {
   assert.equal(typeof client.auth[method], 'function');
 }
 assert.equal(typeof client.records.list, 'function');
@@ -175,7 +175,18 @@ Promise.all([checkImport(), checkVerification(), checkManagement(), checkGitHub(
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `async function checkGitHubTypes(githubClient: import('nebula-sdk-ts').NebulaClient) {
+    `async function checkAvatarTypes(client: import('nebula-sdk-ts').NebulaClient, photo: Blob) {
+ const user: import('nebula-sdk-ts').User = await client.auth.uploadAvatar(photo, { timeout: 15000 });
+ const source: '' | 'github' | 'upload' | 'none' | undefined = user.avatar_source;
+ const completed: boolean | undefined = user.onboarding_completed;
+ await client.auth.removeAvatar({ signal: new AbortController().signal });
+ await client.auth.completeOnboarding();
+ // @ts-expect-error Upload requires a Blob or File, not an arbitrary URL.
+ await client.auth.uploadAvatar('https://example.test/photo');
+ void [source, completed];
+}
+void checkAvatarTypes;
+async function checkGitHubTypes(githubClient: import('nebula-sdk-ts').NebulaClient) {
  const options: import('nebula-sdk-ts').AuthRequestOptions = { timeout: 15000, signal: new AbortController().signal };
  const providers: import('nebula-sdk-ts').AuthProvidersResponse = await githubClient.auth.getProviders(options);
  const start: import('nebula-sdk-ts').GitHubStartPayload = { code_challenge: 'A'.repeat(43) };
