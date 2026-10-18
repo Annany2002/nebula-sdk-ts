@@ -1,5 +1,5 @@
 // src/modules/auth.ts
-import { makeRequest, RequestAuthentication, RequestContext } from '../http';
+import { makeMultipartRequest, makeRequest, RequestAuthentication, RequestContext } from '../http';
 import {
   AuthProvidersResponse,
   GitHubStartPayload,
@@ -43,6 +43,8 @@ import {
   parseGitHubLogin,
   parseGitHubLink,
 } from './github-validation';
+
+import { avatarForm, confirmAvatarResult } from './avatar-validation';
 
 export class AuthModule {
   private context: ModuleContext;
@@ -319,6 +321,44 @@ export class AuthModule {
       undefined,
       [200],
       parseUser
+    );
+  }
+
+  /** Uploads a public profile photo. The server validates and normalizes it; filenames are ignored. */
+  async uploadAvatar(file: Blob, options: AuthRequestOptions = {}): Promise<UserInfo> {
+    const context = this.getRequestContext('bearer', options);
+    const response = await makeMultipartRequest<unknown>(
+      'api/v1/account/user/me/avatar',
+      context,
+      avatarForm(file),
+      200
+    );
+    return confirmAvatarResult(parseUser(response), 'upload');
+  }
+
+  /** Removes the photo and preserves the explicit choice across later GitHub sign-ins. */
+  async removeAvatar(options: AuthRequestOptions = {}): Promise<UserInfo> {
+    return makeRequest<UserInfo>(
+      'api/v1/account/user/me/avatar',
+      'DELETE',
+      this.getRequestContext('bearer', options),
+      undefined,
+      undefined,
+      [200],
+      (value) => confirmAvatarResult(parseUser(value), 'remove')
+    );
+  }
+
+  /** Marks optional onboarding complete, including skipping photo setup. Does not change the avatar. */
+  async completeOnboarding(options: AuthRequestOptions = {}): Promise<UserInfo> {
+    return makeRequest<UserInfo>(
+      'api/v1/account/user/me/onboarding',
+      'POST',
+      this.getRequestContext('bearer', options),
+      undefined,
+      undefined,
+      [200],
+      (value) => confirmAvatarResult(parseUser(value), 'onboard')
     );
   }
 

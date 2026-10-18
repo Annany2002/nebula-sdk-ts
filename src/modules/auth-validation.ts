@@ -1,3 +1,4 @@
+import { parseAvatarFields } from './avatar-validation';
 import { NebulaError, NetworkError } from '../errors';
 import { AuthRequestOptions, SignupResponse, UpdateProfileResponse, User } from '../types';
 
@@ -102,6 +103,7 @@ export function parseUser(value: unknown): User {
   if (user.role !== undefined && user.role !== 'user' && user.role !== 'admin')
     return invalidResponse();
   return {
+    ...parseAvatarFields(user),
     userId: user.userId,
     email: user.email,
     username: user.username,
