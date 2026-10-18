@@ -29,7 +29,7 @@ const baselineSuites = [
   'github',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => !baselineSuites.includes(suite))) {
+if (suites.some((suite) => ![...baselineSuites, 'avatars'].includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
