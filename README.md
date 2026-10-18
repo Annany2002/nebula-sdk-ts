@@ -177,9 +177,9 @@ Signup, login, profile reads/updates and the new verification methods accept opt
 
 Email-verification integration runs by default in `npm run test:backend` and CI. Run `npm run test:backend:verification` for that suite alone. It uses a temporary Go entrypoint overlay, disposable SQLite data and an in-memory mail sender; it sends no real emails and never changes backend source files.
 
-### Password recovery (unreleased)
+### Password recovery
 
-The unreleased source includes `auth.forgotPassword()` and `auth.resetPassword()`; these methods are not in published SDK 0.12.0. They require the password-recovery backend endpoints and `PASSWORD_RESET_ENABLED=true` with configured SMTP. Recovery can run independently of signup verification. See the [backend contract](https://github.com/Annany2002/nebula-backend/blob/main/docs/api-reference/password-recovery.mdx).
+Available in SDK **0.13.0 and later**, `auth.forgotPassword()` and `auth.resetPassword()` require backend revision `2a94edf32cffc702168b07616613414227e1e165` or later and `PASSWORD_RESET_ENABLED=true` with configured SMTP. Recovery can run independently of signup verification. See the [backend contract](https://github.com/Annany2002/nebula-backend/blob/main/docs/api-reference/password-recovery.mdx).
 
 ```typescript
 await client.auth.forgotPassword('builder@example.com', { timeout: 15000 });
@@ -628,22 +628,22 @@ This change corrects declarations to match responses the backend already returns
 
 ## Module surface
 
-The table describes the published SDK. The [unreleased recovery methods](#password-recovery-unreleased) are documented separately above.
+The table describes SDK 0.13.0. See [password recovery](#password-recovery) for server configuration and usage.
 
-| Module      | Methods                                                                                            |
-| ----------- | -------------------------------------------------------------------------------------------------- |
-| `account`   | `getSummary` (SDK 0.12.0+)                                                                         |
-| `admin`     | `listUsers`, `getUser`, `getStats`, `suspendUser`, `activateUser`, `listAuditEvents` (SDK 0.12.0+) |
-| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`                                 |
-| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`     |
-| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                    |
-| `records`   | `create`, `list`, `get`, `update`, `delete`                                                        |
-| `sql`       | `execute`                                                                                          |
-| `analytics` | `get`                                                                                              |
-| `diagrams`  | `get`                                                                                              |
-| `exports`   | `sql`, `sqlite`                                                                                    |
-| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                             |
-| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                  |
+| Module      | Methods                                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`   | `getSummary` (SDK 0.12.0+)                                                                                                                                       |
+| `admin`     | `listUsers`, `getUser`, `getStats`, `suspendUser`, `activateUser`, `listAuditEvents` (SDK 0.12.0+)                                                               |
+| `auth`      | `signup`, `login`, `healthP`, `getMe`, `updateProfile`, `findUser`, `verifyEmail`, `resendVerification`, `requestEmailChange`, `forgotPassword`, `resetPassword` |
+| `databases` | `create`, `importSQLite`, `list`, `get`, `delete`, `createApiKey`, `getApiKey`, `deleteApiKey`                                                                   |
+| `schema`    | `define`, `createTable`, `listTables`, `getSchema`, `deleteTable`, `alterTable`                                                                                  |
+| `records`   | `create`, `list`, `get`, `update`, `delete`                                                                                                                      |
+| `sql`       | `execute`                                                                                                                                                        |
+| `analytics` | `get`                                                                                                                                                            |
+| `diagrams`  | `get`                                                                                                                                                            |
+| `exports`   | `sql`, `sqlite`                                                                                                                                                  |
+| `backups`   | `create`, `list`, `get`, `download`, `restore`, `delete` (SDK 0.10.0+)                                                                                           |
+| `objects`   | `get`, `createIndex`, `dropIndex`, `createTrigger`, `dropTrigger`                                                                                                |
 
 Account/profile, database lifecycle, and API key management methods require a JWT set with `setAuthToken()`. Signup requires `username`, `email`, and `password` and does not return a login token. Log in separately.
 
