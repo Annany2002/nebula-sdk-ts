@@ -13,3 +13,4 @@ export * from './export';
 export * from './backup';
 export * from './account';
 export * from './admin';
+export * from './github';
