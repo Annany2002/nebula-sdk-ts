@@ -4,6 +4,7 @@
 
 ### Added
 
+- Optional avatar/onboarding profile fields and owner-JWT upload, removal and onboarding-completion methods, with safe response projection, bounded multipart uploads, unit tests and an opt-in isolated backend contract suite. Requires the profile-avatar backend; unavailable in npm 0.13.0.
 - Public provider discovery and separate GitHub sign-in/linking methods with typed payloads, bounded S256 proof validation, safe authorization URL checks and projected responses.
 - OAuth contract tests, installed JavaScript/TypeScript package checks and a Go-backend integration suite included in the default CI checks with an injected provider and disposable SQLite data.
 

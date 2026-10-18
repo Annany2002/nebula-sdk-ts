@@ -245,6 +245,25 @@ A timeout, cancellation, network error, malformed acknowledgement or provider fa
 
 Run `npm run test:backend:github` against a local checkout containing the OAuth backend. It uses a temporary entrypoint overlay, an injected provider and disposable SQLite storage; it contacts neither GitHub nor an SMTP server. OAuth integration also runs by default in `npm run test:backend` and CI against the pinned backend revision below.
 
+### Profile photos and onboarding (unreleased)
+
+Requires a backend with the profile-avatar routes. These methods are not included in npm version 0.13.0.
+
+```typescript
+// File extends Blob in the browser. Node applications can create a Blob from image bytes.
+const profile = await client.auth.uploadAvatar(photoFile);
+await client.auth.removeAvatar();
+await client.auth.completeOnboarding(); // Also used to skip optional photo setup.
+```
+
+All three methods require an owner JWT set with `client.setAuthToken(...)`. They return the current profile directly, validate responses, accept the standard auth timeout/signal options, and never adopt a token automatically. Uploads use native FormData; Fetch sets the multipart boundary. No request is automatically retried.
+
+`User` includes optional `avatar_url`, `avatar_source` and `onboarding_completed` fields for compatibility with older servers. Relative `/avatars/<asset-id>` URLs resolve against the backend origin. GitHub sign-in imports the provider photo; explicit uploads and removals are preserved across later sign-ins. `completeOnboarding()` records completion without changing the photo, so skipping is persistent across browsers.
+
+Uploads accept JPEG, PNG or WebP up to 2 MiB. The server validates content and dimensions, strips metadata and stores a 256px JPEG. Photos are public; replacement/removal invalidates the previous asset URL. Do not put private images in profile photos. After an uncertain write, read `auth.getMe()` before deciding whether to retry.
+
+Run `node scripts/test-backend.mjs avatars` against the adjacent updated backend checkout for the isolated avatar contract suite. The default CI backend pin remains the last merged OAuth revision until the avatar backend is merged; the avatar suite is currently opt-in.
+
 ## Backend compatibility
 
 The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `10efe63ba1c07a9fe0588318227f3f228a79961b`. Native trigger management is available in SDK 0.8.0 and later.
