@@ -200,9 +200,54 @@ Read `error.errorData?.code` for `invalid_password_reset_token`, `password_reset
 
 Password-recovery integration runs by default in `npm run test:backend` and CI against the merged backend revision pinned below. Run `npm run test:backend:recovery` for that suite alone. It uses disposable SQLite data and captured in-memory mail; it sends no real email and requires no SMTP credentials.
 
+### GitHub sign-in (unreleased)
+
+Unreleased GitHub support adds `auth.getProviders()`, `startGitHubSignIn()`, `completeGitHubSignIn()`, `startGitHubLink()` and `completeGitHubLink()`. These methods are **not available in npm 0.13.0**. They require backend revision `10efe63ba1c07a9fe0588318227f3f228a79961b` or later, `GITHUB_OAUTH_ENABLED=true` and a registered OAuth app. SMTP is not required. Configuration, callback registration and account-resolution rules are in the [backend OAuth contract](https://github.com/Annany2002/nebula-backend/blob/main/docs/api-reference/github-sign-in.mdx).
+
+```typescript
+import type { GitHubCallbackPayload } from 'nebula-sdk-ts';
+
+// The application generates a fresh verifier and computes its unpadded S256 challenge.
+// Persist this attempt's verifier and the returned state before leaving the initiating tab.
+async function startGitHub(code_challenge: string) {
+  const { providers } = await client.auth.getProviders();
+  if (!providers.github) throw new Error('GitHub sign-in is unavailable.');
+  return client.auth.startGitHubSignIn({ code_challenge });
+}
+
+async function finishGitHub(callback: GitHubCallbackPayload) {
+  // First validate state against the initiating attempt and scrub the callback URL before analytics.
+  // Submit once, after user confirmation. Never log the code or verifier.
+  const login = await client.auth.completeGitHubSignIn(callback);
+  client.setAuthToken(login.token);
+  return login.user;
+}
+
+async function startGitHubConnection(code_challenge: string, current_password: string) {
+  // Set the existing owner's JWT on the client before starting an explicit connection.
+  return client.auth.startGitHubLink({ code_challenge, current_password });
+}
+
+async function finishGitHubConnection(callback: GitHubCallbackPayload) {
+  await client.auth.completeGitHubLink(callback);
+  client.setAuthToken(null);
+  // Existing sessions were revoked. Sign in again using GitHub or the original password.
+}
+```
+
+All five methods accept optional `AuthRequestOptions` (`signal`, `timeout`). Discovery, sign-in start and both callback methods omit JWT/API-key authorization. Linking start requires the owner's JWT and current password; an API key cannot substitute. Requests omit browser credentials, disable caching, reject redirects and never retry automatically. Every method expects `200`. Login completion returns a validated `{ message, user, token }`; linking returns only `{ message }`. None changes the SDK's stored JWT automatically.
+
+The SDK performs HTTP contract validation only: the application owns PKCE generation, per-attempt verifier storage, state comparison, callback URL removal, navigation, expiry and one-use submission controls. It never reads browser storage or follows authorization URLs. Before redirecting, compare the returned `redirect_uri` to your application's exact configured callback, and bind the attempt to the initiating session. Keep the OAuth client secret on the backend.
+
+Existing email addresses never merge automatically. Sign in with the existing method and explicitly connect GitHub instead. A new GitHub identity may create a passwordless account; suspension and verification policies still apply. Read `error.errorData?.code` for provider errors and honor `RateLimitError.retryAfterSeconds`. Disabled or older servers may return `503` or `404`; retain password sign-in in your application.
+
+A timeout, cancellation, network error, malformed acknowledgement or provider failure can follow a consumed exchange. Start a new GitHub flow rather than replaying the code. A lost linking response can leave the identity connected and old sessions revoked; a fresh GitHub sign-in resolves that account. Identity replacement, disconnection and account merging are not implemented.
+
+Run `npm run test:backend:github` against a local checkout containing the OAuth backend. It uses a temporary entrypoint overlay, an injected provider and disposable SQLite storage; it contacts neither GitHub nor an SMTP server. OAuth integration also runs by default in `npm run test:backend` and CI against the pinned backend revision below.
+
 ## Backend compatibility
 
-The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `2a94edf32cffc702168b07616613414227e1e165`. Native trigger management is available in SDK 0.8.0 and later.
+The contracts below apply to SDK 0.3.0 and later. Version 0.2.0 has the older declarations; see the migration guide below. SQL execution is available in SDK 0.4.0 and later. Analytics, diagrams, objects, and exports are available in SDK 0.5.0 and later. The integration checks target backend revision `10efe63ba1c07a9fe0588318227f3f228a79961b`. Native trigger management is available in SDK 0.8.0 and later.
 
 - `records.list()` returns `{ records, pagination }`, where pagination contains `total`, `limit`, and `offset`.
 - `records.create()` and `records.update()` return `{ message, record_id }`. Fetch the row with `records.get()` when needed.
@@ -691,7 +736,7 @@ npm ci
 | `npm run build`        | Compile JavaScript and declarations to `dist/`                      |
 | `npm run format`       | Format source, tests, scripts, configuration, docs, and workflows   |
 
-`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, SQLite import, managed-backup, email-verification, platform-management and password-recovery integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
+`npm run test:backend` requires Go, a C compiler, and Python 3 with its standard `sqlite3` module for export restore checks. It uses the sibling `../nebula-backend` repository by default; set `NEBULA_BACKEND_DIR` to another local checkout if needed. The runner builds that checkout, starts a temporary server with temporary SQLite storage, runs the authentication, contract, SQL, analytics, diagram, object, native index, native trigger, export, database detail, schema alteration, SQLite import, managed-backup, email-verification, platform-management, password-recovery and GitHub OAuth integration suites on separate servers, and removes its data afterward. The integration suites are skipped during ordinary `npm test` runs.
 
 `npm run test:backend:imports` runs only the SQLite import suite. It verifies snapshot preservation, export/import round-trips, owner isolation, conflicts and validation failures. The default integration suite and CI also run these checks against the backend revision pinned above.
 

@@ -1,6 +1,12 @@
 // src/modules/auth.ts
 import { makeRequest, RequestAuthentication, RequestContext } from '../http';
 import {
+  AuthProvidersResponse,
+  GitHubStartPayload,
+  GitHubLinkStartPayload,
+  GitHubAuthorizationResponse,
+  GitHubCallbackPayload,
+  GitHubLinkResponse,
   AuthRequestOptions,
   PasswordResetPayload,
   PasswordRecoveryResponse,
@@ -28,6 +34,15 @@ import {
   validatePasswordReset,
   validateVerificationToken,
 } from './auth-validation';
+
+import {
+  validateGitHubStart,
+  validateGitHubCallback,
+  parseAuthProviders,
+  parseGitHubAuthorization,
+  parseGitHubLogin,
+  parseGitHubLink,
+} from './github-validation';
 
 export class AuthModule {
   private context: ModuleContext;
@@ -103,6 +118,89 @@ export class AuthModule {
       undefined,
       credentials,
       [200]
+    );
+  }
+
+  /** Discover enabled providers. Older backends may return NotFoundError. No credentials are sent. */
+  async getProviders(options: AuthRequestOptions = {}): Promise<AuthProvidersResponse> {
+    return makeRequest(
+      'auth/providers',
+      'GET',
+      this.getRequestContext('none', options),
+      undefined,
+      undefined,
+      [200],
+      parseAuthProviders
+    );
+  }
+
+  /** Start with an S256 challenge; the caller owns verifier storage, state comparison and navigation. */
+  async startGitHubSignIn(
+    payload: GitHubStartPayload,
+    options: AuthRequestOptions = {}
+  ): Promise<GitHubAuthorizationResponse> {
+    validateGitHubStart(payload);
+    const challenge = payload.code_challenge;
+    return makeRequest(
+      'auth/github/start',
+      'POST',
+      this.getRequestContext('none', options),
+      undefined,
+      { code_challenge: challenge },
+      [200],
+      (value) => parseGitHubAuthorization(value, challenge)
+    );
+  }
+
+  /** One code exchange, with no retries or automatic change to the client's stored JWT. */
+  async completeGitHubSignIn(
+    payload: GitHubCallbackPayload,
+    options: AuthRequestOptions = {}
+  ): Promise<LoginResponse> {
+    validateGitHubCallback(payload);
+    return makeRequest(
+      'auth/github/callback',
+      'POST',
+      this.getRequestContext('none', options),
+      undefined,
+      { code: payload.code, state: payload.state, code_verifier: payload.code_verifier },
+      [200],
+      parseGitHubLogin
+    );
+  }
+
+  /** Requires the owner's current JWT and password; a database API key cannot substitute for a JWT. */
+  async startGitHubLink(
+    payload: GitHubLinkStartPayload,
+    options: AuthRequestOptions = {}
+  ): Promise<GitHubAuthorizationResponse> {
+    validateGitHubStart(payload, true);
+    const challenge = payload.code_challenge;
+    return makeRequest(
+      'api/v1/account/identities/github/start',
+      'POST',
+      this.getRequestContext('bearer', options),
+      undefined,
+      { code_challenge: challenge, current_password: payload.current_password },
+      [200],
+      (value) => parseGitHubAuthorization(value, challenge)
+    );
+  }
+
+  /** Complete a linking attempt once. Clear the stored JWT after success and sign in again. */
+  async completeGitHubLink(
+    payload: GitHubCallbackPayload,
+    options: AuthRequestOptions = {}
+  ): Promise<GitHubLinkResponse> {
+    validateGitHubCallback(payload);
+    return makeRequest(
+      'auth/github/callback',
+      'POST',
+      this.getRequestContext('none', options),
+      undefined,
+      { code: payload.code, state: payload.state, code_verifier: payload.code_verifier },
+      [200],
+      parseGitHubLink
     );
   }
 

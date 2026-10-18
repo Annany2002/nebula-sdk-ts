@@ -25,6 +25,8 @@ try {
     'dist/modules/account.js',
     'dist/modules/admin.d.ts',
     'dist/types/admin.d.ts',
+    'dist/types/github.d.ts',
+    'dist/modules/github-validation.js',
     'README.md',
     'LICENSE',
   ]) {
@@ -60,7 +62,7 @@ assert.equal(typeof client.account.getSummary, 'function');
 for (const method of ['listUsers', 'getUser', 'getStats', 'suspendUser', 'activateUser', 'listAuditEvents']) {
   assert.equal(typeof client.admin[method], 'function');
 }
-for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange', 'forgotPassword', 'resetPassword']) {
+for (const method of ['verifyEmail', 'resendVerification', 'requestEmailChange', 'forgotPassword', 'resetPassword', 'getProviders', 'startGitHubSignIn', 'completeGitHubSignIn', 'startGitHubLink', 'completeGitHubLink']) {
   assert.equal(typeof client.auth[method], 'function');
 }
 assert.equal(typeof client.records.list, 'function');
@@ -133,14 +135,64 @@ async function checkManagement() {
   assert.equal((await owner.admin.suspendUser('owner')).user.status, 'suspended');
   assert.equal((await owner.admin.getUser('owner')).user.password_hash, undefined);
 }
-Promise.all([checkImport(), checkVerification(), checkManagement()]).catch((error) => { console.error(error); process.exitCode = 1; });
+async function checkGitHub() {
+  const { createHash } = require('node:crypto');
+  const code_verifier = 'x'.repeat(43);
+  const code_challenge = createHash('sha256').update(code_verifier).digest('base64url');
+  const state = 'A'.repeat(43);
+  const callback = { code: 'fixture-code', state, code_verifier };
+  const params = new URLSearchParams({ client_id: 'fixture', scope: 'user:email', redirect_uri: 'http://localhost:3000/auth/github/callback', state, code_challenge, code_challenge_method: 'S256' });
+  const auth = { authorization_url: 'https://github.com/login/oauth/authorize?' + params, expires_in: 600 };
+  let calls = 0;
+  const owner = new NebulaClient({ baseURL: 'http://localhost:8080', apiKey: 'must-not-send', fetch: async (url, init) => {
+    calls++;
+    const linkStart = url.endsWith('/account/identities/github/start');
+    assert.equal(init.headers.Authorization, linkStart ? 'Bearer package.jwt' : undefined);
+    assert.equal(init.credentials, 'omit'); assert.equal(init.redirect, 'error'); assert.equal(init.cache, 'no-store');
+    let result;
+    if (url.endsWith('/auth/providers')) result = { providers: { password: true, github: true } };
+    else if (url.endsWith('/github/start')) {
+      assert.deepEqual(JSON.parse(init.body), { code_challenge, ...(linkStart ? { current_password: 'fixture-password' } : {}) });
+      result = auth;
+    } else {
+      assert.deepEqual(JSON.parse(init.body), callback);
+      result = calls === 5 ? { message: 'Linked' } : { message: 'Signed in', token: 'new.jwt', user: { userId: 'owner', username: 'builder', email: 'owner@example.test', createdAt: '2026-10-18' } };
+    }
+    return new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  } });
+  owner.setAuthToken('package.jwt');
+  assert.equal((await owner.auth.getProviders()).providers.github, true);
+  assert.deepEqual(await owner.auth.startGitHubSignIn({ code_challenge }), auth);
+  assert.equal((await owner.auth.completeGitHubSignIn(callback)).token, 'new.jwt');
+  await owner.auth.startGitHubLink({ code_challenge, current_password: 'fixture-password' });
+  assert.deepEqual(await owner.auth.completeGitHubLink(callback), { message: 'Linked' });
+  assert.equal(owner.getAuthToken(), 'package.jwt'); assert.equal(calls, 5);
+}
+Promise.all([checkImport(), checkVerification(), checkManagement(), checkGitHub()]).catch((error) => { console.error(error); process.exitCode = 1; });
 `
   );
   execFileSync(process.execPath, ['consumer.cjs'], { cwd: temporary, stdio: 'inherit' });
 
   await writeFile(
     join(temporary, 'consumer.ts'),
-    `async function checkRecoveryTypes(recoveryClient: import('nebula-sdk-ts').NebulaClient) {
+    `async function checkGitHubTypes(githubClient: import('nebula-sdk-ts').NebulaClient) {
+ const options: import('nebula-sdk-ts').AuthRequestOptions = { timeout: 15000, signal: new AbortController().signal };
+ const providers: import('nebula-sdk-ts').AuthProvidersResponse = await githubClient.auth.getProviders(options);
+ const start: import('nebula-sdk-ts').GitHubStartPayload = { code_challenge: 'A'.repeat(43) };
+ const authorization: import('nebula-sdk-ts').GitHubAuthorizationResponse = await githubClient.auth.startGitHubSignIn(start, options);
+ const callback: import('nebula-sdk-ts').GitHubCallbackPayload = { code: 'temporary-code', state: 'A'.repeat(43), code_verifier: 'x'.repeat(43) };
+ const login: import('nebula-sdk-ts').LoginResponse = await githubClient.auth.completeGitHubSignIn(callback, options);
+ const link: import('nebula-sdk-ts').GitHubLinkStartPayload = { ...start, current_password: 'current-password' };
+ await githubClient.auth.startGitHubLink(link, options);
+ const linked: import('nebula-sdk-ts').GitHubLinkResponse = await githubClient.auth.completeGitHubLink(callback, options);
+ // @ts-expect-error Linking does not create a login session.
+ const prematureToken: string = linked.token;
+ // @ts-expect-error Public OAuth start accepts no redirect override.
+ await githubClient.auth.startGitHubSignIn({ ...start, redirect_uri: 'https://other.test' });
+ void [providers, authorization, login, prematureToken];
+}
+void checkGitHubTypes;
+async function checkRecoveryTypes(recoveryClient: import('nebula-sdk-ts').NebulaClient) {
  const payload: PasswordResetPayload = { token: 'A'.repeat(43), password: 'sdk-new-password' };
  const request: PasswordRecoveryResponse = await recoveryClient.auth.forgotPassword('owner@example.test', { timeout: 1000 });
  const response: PasswordRecoveryResponse = await recoveryClient.auth.resetPassword(payload, { signal: new AbortController().signal });
