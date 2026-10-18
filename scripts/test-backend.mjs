@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -28,7 +28,8 @@ const baselineSuites = [
   'recovery',
 ];
 const suites = process.argv.length > 2 ? process.argv.slice(2) : baselineSuites;
-if (suites.some((suite) => !baselineSuites.includes(suite))) {
+const availableSuites = [...baselineSuites, 'github'];
+if (suites.some((suite) => !availableSuites.includes(suite))) {
   throw new Error('Unknown backend integration suite.');
 }
 await access(join(backend, 'go.mod'));
@@ -99,22 +100,31 @@ try {
       cwd: backend,
       stdio: 'inherit',
     });
-  const verificationBinary = join(temporary, 'nebula-verification');
-  if (suites.includes('verification') || suites.includes('recovery')) {
-    const overlay = join(temporary, 'verification-overlay.json');
-    const { writeFile } = await import('node:fs/promises');
+  const fixtures = new Map();
+  for (const [name, file, enabled] of [
+    [
+      'verification',
+      'email-server.go',
+      suites.includes('verification') || suites.includes('recovery'),
+    ],
+    ['github', 'github-server.go', suites.includes('github')],
+  ]) {
+    if (!enabled) continue;
+    const overlay = join(temporary, name + '-overlay.json');
+    const fixtureBinary = join(temporary, 'nebula-' + name);
     await writeFile(
       overlay,
       JSON.stringify({
         Replace: {
-          [join(backend, 'cmd/server/main.go')]: join(sdk, 'test/fixtures/email-server.go'),
+          [join(backend, 'cmd/server/main.go')]: join(sdk, 'test/fixtures', file),
         },
       })
     );
-    await run('go', ['build', '-overlay', overlay, '-o', verificationBinary, './cmd/server'], {
+    await run('go', ['build', '-overlay', overlay, '-o', fixtureBinary, './cmd/server'], {
       cwd: backend,
       stdio: 'inherit',
     });
+    fixtures.set(name, fixtureBinary);
   }
   for (const suite of suites) {
     // Separate servers keep each suite below the real per-IP rate limit.
@@ -123,7 +133,8 @@ try {
     logs = '';
     const port = await freePort();
     const url = `http://127.0.0.1:${port}`;
-    server = spawn(['verification', 'recovery'].includes(suite) ? verificationBinary : binary, [], {
+    const fixture = suite === 'recovery' ? 'verification' : suite;
+    server = spawn(fixtures.get(fixture) || binary, [], {
       cwd: suiteDirectory,
       env: {
         ...process.env,
@@ -137,6 +148,10 @@ try {
         GIN_MODE: 'release',
         // Never inherit enabled SMTP/provider settings into isolated contract tests.
         EMAIL_VERIFICATION_ENABLED: 'false',
+        GITHUB_OAUTH_ENABLED: 'false',
+        GITHUB_OAUTH_CLIENT_ID: '',
+        GITHUB_OAUTH_CLIENT_SECRET: '',
+        GITHUB_OAUTH_REDIRECT_URL: '',
         PASSWORD_RESET_ENABLED: suite === 'recovery' ? 'true' : 'false',
         APP_PUBLIC_URL: 'http://localhost:3000',
         SMTP_HOST: 'fixture.example.test',
@@ -175,6 +190,7 @@ try {
           NEBULA_TEST_URL: url,
           NEBULA_TEST_VERIFICATION: suite === 'verification' ? 'true' : 'false',
           NEBULA_TEST_RECOVERY: suite === 'recovery' ? 'true' : 'false',
+          NEBULA_TEST_GITHUB: suite === 'github' ? 'true' : 'false',
           NEBULA_TEST_MANAGEMENT: suite === 'management' ? 'true' : 'false',
           ...(suite === 'management' && {
             NEBULA_TEST_ADMIN_CLI: adminBinary,
