@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Public provider discovery and separate GitHub sign-in/linking methods with typed payloads, bounded S256 proof validation, safe authorization URL checks and projected responses.
+- OAuth contract tests, installed JavaScript/TypeScript package checks and a Go-backend integration suite included in the default CI checks with an injected provider and disposable SQLite data.
+
+GitHub support requires backend revision `10efe63ba1c07a9fe0588318227f3f228a79961b` or later and a configured OAuth app. It is not included in npm version 0.13.0. CI pins this backend revision and includes OAuth integration in the default suite.
+
 ## 0.13.0 - 2026-10-18
 
 ### Added
